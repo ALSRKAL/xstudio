@@ -68,7 +68,6 @@ export const PROVIDERS = {
   llm7: {
     id: 'llm7',
     label: 'LLM7 (Free)',
-    icon: '🎁',
     color: '#8b5cf6',
     envKey: 'LLM7_API_KEY',
     keyless: true,
@@ -81,7 +80,6 @@ export const PROVIDERS = {
   groq: {
     id: 'groq',
     label: 'Groq',
-    icon: '⚡',
     color: '#f55036',
     envKey: 'GROQ_API_KEY',
     signupUrl: 'https://console.groq.com/keys',
@@ -90,7 +88,6 @@ export const PROVIDERS = {
   openrouter: {
     id: 'openrouter',
     label: 'OpenRouter',
-    icon: '🌐',
     color: '#6467f2',
     envKey: 'OPENROUTER_API_KEY',
     signupUrl: 'https://openrouter.ai/keys',
@@ -99,7 +96,6 @@ export const PROVIDERS = {
   gemini: {
     id: 'gemini',
     label: 'Google Gemini',
-    icon: '✨',
     color: '#4285f4',
     envKey: 'GEMINI_API_KEY',
     signupUrl: 'https://aistudio.google.com/apikey',
@@ -108,7 +104,6 @@ export const PROVIDERS = {
   cerebras: {
     id: 'cerebras',
     label: 'Cerebras',
-    icon: '🧠',
     color: '#f97316',
     envKey: 'CEREBRAS_API_KEY',
     signupUrl: 'https://cloud.cerebras.ai',
@@ -117,7 +112,6 @@ export const PROVIDERS = {
   mistral: {
     id: 'mistral',
     label: 'Mistral',
-    icon: '🌪️',
     color: '#ff7000',
     envKey: 'MISTRAL_API_KEY',
     signupUrl: 'https://console.mistral.ai/api-keys',
@@ -126,7 +120,6 @@ export const PROVIDERS = {
   github: {
     id: 'github',
     label: 'GitHub Models',
-    icon: '🐙',
     color: '#6e7681',
     envKey: 'GITHUB_MODELS_TOKEN',
     signupUrl: 'https://github.com/settings/tokens',
@@ -135,7 +128,6 @@ export const PROVIDERS = {
   nvidia: {
     id: 'nvidia',
     label: 'NVIDIA NIM',
-    icon: '🟩',
     color: '#76b900',
     envKey: 'NVIDIA_API_KEY',
     signupUrl: 'https://build.nvidia.com',
@@ -144,7 +136,6 @@ export const PROVIDERS = {
   together: {
     id: 'together',
     label: 'Together AI',
-    icon: '🤝',
     color: '#0f6fff',
     envKey: 'TOGETHER_API_KEY',
     signupUrl: 'https://api.together.xyz/settings/api-keys',
@@ -237,7 +228,6 @@ export const buildModelMeta = (canonicalId, extra = {}) => {
     provider,
     providerLabel: providerInfo.label,
     name: prettifyModelName(model),
-    icon: providerInfo.icon,
     color: providerInfo.color,
     keyless: !!providerInfo.keyless,
     speed: speedRule ? speedRule.speed : 'medium',

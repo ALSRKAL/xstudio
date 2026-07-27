@@ -1,6 +1,6 @@
 {
   "short_name": "X Studio",
-  "name": "X Studio - AI Text & Image Generation",
+  "name": "X Studio - AI Chat & Image Generation",
   "icons": [
     {
       "src": "favicon.svg",
@@ -21,7 +21,9 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#667eea",
-  "background_color": "#ffffff",
-  "description": "Professional AI interface for text generation and image creation"
+  "theme_color": "#4f46e5",
+  "background_color": "#f7f8fa",
+  "lang": "ar",
+  "dir": "rtl",
+  "description": "AI chat and image generation with streaming responses and multiple free model providers."
 }

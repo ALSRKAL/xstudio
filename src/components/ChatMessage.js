@@ -5,6 +5,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
 import { getModelInfo } from '../config/api';
+import { getAssistantIcon, USER_ICON } from '../config/icons';
 import { useTranslation } from '../utils/translations';
 
 const hasArabic = (text) => /[\u0600-\u06FF]/.test(text || '');
@@ -45,7 +46,7 @@ const ChatMessage = memo(
 
     const isUser = message.role === 'user';
     const modelMeta = getModelInfo(message.modelUsed || selectedModel);
-    const avatar = isUser ? '👤' : modelMeta.icon;
+    const AvatarIcon = isUser ? USER_ICON : getAssistantIcon(modelMeta.provider);
     const isImageResult = message.type === 'image' && !isUser;
     const imageReady = imageLoading[index] === false;
     const direction = hasArabic(message.content) ? 'rtl' : 'ltr';
@@ -105,7 +106,7 @@ const ChatMessage = memo(
         <div className="message-wrapper">
           <div className="message-avatar">
             <div className="avatar-icon" title={isUser ? t('you') : modelMeta.name}>
-              {avatar}
+              <AvatarIcon size={16} aria-hidden="true" />
             </div>
           </div>
 

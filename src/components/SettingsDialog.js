@@ -10,10 +10,12 @@ import {
   ExternalLink,
   Check,
   ShieldAlert,
+  AlertTriangle,
 } from 'lucide-react';
 import { useTranslation } from '../utils/translations';
 import { getStorageStats } from '../utils/storage';
 import { APP_CONFIG, PROVIDERS, PROVIDER_ORDER } from '../config/api';
+import { getProviderIcon } from '../config/icons';
 import { fetchAvailableModels } from '../services/aiClient';
 import { getApiKeys, setApiKey } from '../utils/apiKeys';
 import './SettingsDialog.css';
@@ -85,9 +87,14 @@ const SettingsDialog = ({
     <div className="settings-overlay" onClick={onClose}>
       <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
-          <h3>⚙️ {t('settingsTitle')}</h3>
-          <button className="close-button" onClick={onClose}>
-            <X size={24} />
+          <h3>{t('settingsTitle')}</h3>
+          <button
+            type="button"
+            className="close-button"
+            onClick={onClose}
+            aria-label={t('close')}
+          >
+            <X size={20} />
           </button>
         </div>
 
@@ -160,10 +167,12 @@ const SettingsDialog = ({
                   </span>
                 </div>
                 <div className="storage-stats">
-                  <span>📊 {language === 'ar' ? 'عدد المحادثات' : 'Total Chats'}: {storageStats.totalChats}</span>
+                  <span>
+                    {language === 'ar' ? 'عدد المحادثات' : 'Total chats'}: {storageStats.totalChats}
+                  </span>
                   {storageStats.usagePercent > 70 && (
                     <span className="storage-warning">
-                      ⚠️ {language === 'ar' ? storageStats.recommendation : storageStats.recommendation}
+                      <AlertTriangle size={13} aria-hidden="true" /> {storageStats.recommendation}
                     </span>
                   )}
                 </div>
@@ -188,11 +197,13 @@ const SettingsDialog = ({
                 const hasUserKey = !!keys[id];
                 const isActive = activeProviders.includes(id);
 
+                const ProviderIcon = getProviderIcon(id);
+
                 return (
                   <li key={id} className="provider-row">
                     <div className="provider-main">
-                      <span className="provider-icon" aria-hidden="true">
-                        {provider.icon}
+                      <span className="provider-icon" style={{ color: provider.color }}>
+                        <ProviderIcon size={16} aria-hidden="true" />
                       </span>
                       <div className="provider-info">
                         <span className="provider-name">{provider.label}</span>

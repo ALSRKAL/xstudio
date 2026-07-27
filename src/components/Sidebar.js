@@ -1,6 +1,17 @@
 import { memo, useMemo, useState } from 'react';
-import { Sparkles, Plus, Clock, MessageSquare, Image as ImageIcon, Trash2, Search } from 'lucide-react';
+import {
+  ChevronsUpDown,
+  Clock,
+  Image as ImageIcon,
+  MessageSquare,
+  Plus,
+  Search,
+  Settings,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import { APP_CONFIG, getModelInfo } from '../config/api';
+import { getProviderIcon } from '../config/icons';
 import { useTranslation } from '../utils/translations';
 
 const Sidebar = memo(({
@@ -19,6 +30,7 @@ const Sidebar = memo(({
   const { t } = useTranslation(language);
   const [search, setSearch] = useState('');
   const model = selectedModelInfo || getModelInfo(selectedModel);
+  const ModelIcon = getProviderIcon(model.provider);
 
   const filteredHistory = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -53,17 +65,21 @@ const Sidebar = memo(({
       {/* Model Selector Button */}
       <div className="model-selector-section">
         <div className="current-model-display">
-          <span className="model-label">{t('currentModel')}:</span>
+          <span className="model-label">{t('currentModel')}</span>
           <button
             type="button"
             className="change-model-button"
             onClick={onShowModelSelector}
           >
-            <span className="model-icon-small">{model.icon}</span>
-            <span className="model-name-small">{model.name}</span>
-            <Sparkles size={14} />
+            <span className="model-icon-small" style={{ color: model.color }}>
+              <ModelIcon size={16} aria-hidden="true" />
+            </span>
+            <span className="model-button-text">
+              <span className="model-name-small">{model.name}</span>
+              <span className="model-provider-hint">{model.providerLabel}</span>
+            </span>
+            <ChevronsUpDown size={14} className="model-button-chevron" aria-hidden="true" />
           </button>
-          <span className="model-provider-hint">{model.providerLabel}</span>
         </div>
       </div>
 
@@ -138,7 +154,7 @@ const Sidebar = memo(({
 
       <div className="sidebar-footer">
         <button type="button" className="settings-button" onClick={onShowSettings}>
-          <span aria-hidden="true">⚙️</span>
+          <Settings size={16} aria-hidden="true" />
           <span>{t('settings')}</span>
         </button>
         <a

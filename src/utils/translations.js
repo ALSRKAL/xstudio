@@ -83,8 +83,8 @@ export const translations = {
     more: 'المزيد',
     
     // Alerts
-    confirmClearChats: '⚠️ هل أنت متأكد من حذف جميع المحادثات؟\n\n🗑️ سيتم حذف:\n• جميع المحادثات الحالية\n• سجل المحادثات بالكامل\n• جميع الرسائل والصور\n\n❌ لا يمكن التراجع عن هذا الإجراء!',
-    chatsCleared: '✅ تم حذف جميع المحادثات وسجل المحادثات بنجاح!',
+    confirmClearChats: 'حذف جميع المحادثات؟\n\nسيتم حذف السجل بالكامل وكل الرسائل والصور.\nلا يمكن التراجع عن هذا الإجراء.',
+    chatsCleared: 'تم حذف جميع المحادثات',
     confirmDeleteChat: 'هل تريد حذف هذه المحادثة؟',
     
     // Welcome Screen - Image Mode
@@ -140,7 +140,7 @@ export const translations = {
     daily: 'يومي',
     unlimited: 'غير محدود',
     limitReachedModel: 'انتهت الاستخدامات',
-    limitAlert: '❌ انتهت استخدامات هذا النموذج\n\n🔄 سيتم إعادة التعيين بعد 30 يوم من أول استخدام\n\n✅ يمكنك استخدام النموذج المجاني بدون حدود',
+    limitAlert: 'انتهت حصة هذا النموذج. تُعاد الحصة بعد 30 يوماً من أول استخدام، ويمكنك الاستمرار بالنموذج المجاني بدون حدود.',
 
     // ---- v2: errors ----
     errOffline: 'لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى.',
@@ -288,8 +288,8 @@ export const translations = {
     more: 'more',
     
     // Alerts
-    confirmClearChats: '⚠️ Are you sure you want to delete all chats?\n\n🗑️ This will delete:\n• All current conversations\n• Complete chat history\n• All messages and images\n\n❌ This action cannot be undone!',
-    chatsCleared: '✅ All chats and chat history deleted successfully!',
+    confirmClearChats: 'Delete all chats?\n\nThis removes the entire history, every message and every image.\nThis cannot be undone.',
+    chatsCleared: 'All chats deleted',
     confirmDeleteChat: 'Delete this chat?',
     
     // Welcome Screen - Image Mode
@@ -345,7 +345,7 @@ export const translations = {
     daily: 'Daily',
     unlimited: 'Unlimited',
     limitReachedModel: 'Limit Reached',
-    limitAlert: '❌ This model has reached its usage limit\n\n🔄 Will reset 30 days after first use\n\n✅ You can use the free model without limits',
+    limitAlert: 'This model has no quota left. It resets 30 days after first use; the free model stays available without limits.',
 
     // ---- v2: errors ----
     errOffline: 'No internet connection. Check your network and try again.',

@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Eye, Code2, Brain, RefreshCw, Search, Sparkles, X, Zap } from 'lucide-react';
 import { useTranslation } from '../utils/translations';
 import { getLimitsForModel } from '../config/api';
+import { getProviderIcon } from '../config/icons';
 import { getModelUsageStats } from '../utils/usageTracker';
 import './ModelSelector.css';
 
@@ -145,11 +146,14 @@ const ModelSelector = memo(
               <p className="no-models">{t('noModelsFound')}</p>
             )}
 
-            {filteredGroups.map((group) => (
+            {filteredGroups.map((group) => {
+              const GroupIcon = getProviderIcon(group.provider);
+
+              return (
               <section key={group.provider} className="model-group">
                 <header className="model-group-header">
                   <span className="model-group-icon" style={{ color: group.color }}>
-                    {group.icon}
+                    <GroupIcon size={15} aria-hidden="true" />
                   </span>
                   <h4>{group.label}</h4>
                   {group.keyless && (
@@ -219,7 +223,8 @@ const ModelSelector = memo(
                   })}
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

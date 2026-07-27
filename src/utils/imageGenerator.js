@@ -115,7 +115,7 @@ export const processImageGeneration = async (userPrompt) => {
       wasTranslated: hasArabicText(userPrompt),
     };
   } catch (error) {
-    console.error('❌ Image generation error:', error);
+    console.error('Image generation error:', error);
     return {
       success: false,
       error: error.message,

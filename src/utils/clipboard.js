@@ -19,7 +19,7 @@ export const copyToClipboard = async (text) => {
     // Method 2: Fallback using execCommand (works on HTTP)
     return fallbackCopyToClipboard(text);
   } catch (err) {
-    console.error('❌ Clipboard API failed, trying fallback:', err);
+    console.error('Clipboard API failed, trying fallback:', err);
     // Try fallback if modern API fails
     return fallbackCopyToClipboard(text);
   }
@@ -77,7 +77,7 @@ const fallbackCopyToClipboard = (text) => {
     
     return successful;
   } catch (err) {
-    console.error('❌ Fallback copy failed:', err);
+    console.error('Fallback copy failed:', err);
     return false;
   }
 };
