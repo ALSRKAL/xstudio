@@ -8,26 +8,34 @@
 import {
   Bot,
   Brain,
+  Braces,
   Building2,
   Code2,
   Cpu,
+  Eye,
+  FileCode2,
   FlaskConical,
   Gem,
   Github,
   GraduationCap,
   LineChart,
+  Monitor,
   Mountain,
   Network,
   Palette,
   PenLine,
+  RefreshCw,
   Server,
+  Smartphone,
   Sparkles,
+  Tablet,
   Terminal,
   Trees,
   UserRound,
   Users,
   Wand2,
   Wind,
+  X,
   Zap,
 } from 'lucide-react';
 
@@ -71,4 +79,16 @@ export const EXAMPLE_ICONS = {
   city: Building2,
   robot: Bot,
   nature: Trees,
+};
+
+/** Artifact workspace controls */
+export const WORKSPACE_ICONS = {
+  workspace: Braces,
+  preview: Eye,
+  file: FileCode2,
+  reload: RefreshCw,
+  desktop: Monitor,
+  tablet: Tablet,
+  mobile: Smartphone,
+  close: X,
 };

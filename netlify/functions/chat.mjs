@@ -19,7 +19,8 @@ import {
 const LIMITS = {
   maxMessages: 60,
   maxCharsPerMessage: 24000,
-  maxTotalChars: 200000,
+  maxSystemChars: 160000,
+  maxTotalChars: 320000,
   maxTokens: 32000,
   timeoutMs: 120000,
   requestsPerMinute: 30,
@@ -51,10 +52,14 @@ const sanitizeMessages = (raw) => {
   return raw
     .filter((m) => m && typeof m.content === 'string' && m.content.trim())
     .slice(-LIMITS.maxMessages)
-    .map((m) => ({
-      role: ['system', 'user', 'assistant'].includes(m.role) ? m.role : 'user',
-      content: m.content.slice(0, LIMITS.maxCharsPerMessage),
-    }));
+    .map((m) => {
+      const role = ['system', 'user', 'assistant'].includes(m.role) ? m.role : 'user';
+      const maxChars = role === 'system' ? LIMITS.maxSystemChars : LIMITS.maxCharsPerMessage;
+      return {
+        role,
+        content: m.content.slice(0, maxChars),
+      };
+    });
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -162,7 +167,7 @@ export default async (req) => {
   if (!attempts.length) {
     return json(503, {
       success: false,
-      error: 'No AI provider is configured. Add a free API key in Settings.',
+      error: 'No AI provider is configured on the server.',
       code: 'NO_PROVIDER',
     });
   }

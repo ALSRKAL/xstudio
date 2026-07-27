@@ -5,7 +5,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
 import { getModelInfo } from '../config/api';
-import { getAssistantIcon, USER_ICON } from '../config/icons';
+import { getAssistantIcon, USER_ICON, WORKSPACE_ICONS } from '../config/icons';
 import { useTranslation } from '../utils/translations';
 
 const hasArabic = (text) => /[\u0600-\u06FF]/.test(text || '');
@@ -21,11 +21,13 @@ const ChatMessage = memo(
     onDownloadImage,
     onImageLoad,
     onImageError,
+    onOpenArtifact,
     detectLanguage,
     selectedModel,
     language = 'ar',
   }) => {
     const { t } = useTranslation(language);
+    const WorkspaceIcon = WORKSPACE_ICONS.workspace;
     const [isVisible, setIsVisible] = useState(message.type === 'image');
     const messageRef = useRef(null);
 
@@ -223,6 +225,30 @@ const ChatMessage = memo(
                   </ReactMarkdown>
                   {message.streaming && <span className="streaming-cursor" aria-hidden="true" />}
                 </div>
+              )}
+
+              {!isUser && (message.artifactBuilding || message.artifactId || message.artifactError) && (
+                message.artifactId ? (
+                  <button
+                    type="button"
+                    className="artifact-message-card"
+                    onClick={() => onOpenArtifact?.(message.artifactId)}
+                  >
+                    <span className="artifact-card-icon"><WorkspaceIcon size={17} /></span>
+                    <span className="artifact-card-copy">
+                      <strong>{message.artifactTitle || t('workspaceTitle')}</strong>
+                      <small>{t('openWorkspace')}</small>
+                    </span>
+                    <span className="artifact-card-action">{t('preview')}</span>
+                  </button>
+                ) : (
+                  <div className={`artifact-message-status ${message.artifactError ? 'error' : ''}`}>
+                    <span className={message.artifactBuilding ? 'workspace-spinner' : ''}>
+                      {!message.artifactBuilding && <WorkspaceIcon size={16} />}
+                    </span>
+                    {message.artifactError ? t('artifactInvalid') : t('artifactBuilding')}
+                  </div>
+                )
               )}
             </div>
 

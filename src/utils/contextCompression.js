@@ -9,12 +9,22 @@ export const compressMessages = (messages) => {
   if (!messages || messages.length === 0) return [];
   
   return messages.map(msg => ({
-    r: msg.role === 'user' ? 'u' : 'a', // role: u=user, a=assistant
-    c: msg.content, // content
-    t: msg.type === 'text' ? 't' : 'i', // type: t=text, i=image
-    ts: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(), // timestamp as number
-    ...(msg.prompt && { p: msg.prompt }), // prompt for images
-    ...(msg.modelUsed && { m: msg.modelUsed }), // model used
+    ...(msg.id && { i: msg.id }),
+    r: msg.role === 'user' ? 'u' : 'a',
+    c: msg.content,
+    t: msg.type === 'text' ? 't' : 'i',
+    ts: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
+    ...(msg.prompt && { p: msg.prompt }),
+    ...(msg.originalPrompt && { op: msg.originalPrompt }),
+    ...(msg.modelUsed && { m: msg.modelUsed }),
+    ...(msg.provider && { pv: msg.provider }),
+    ...(msg.artifactId && { ai: msg.artifactId }),
+    ...(msg.artifactTitle && { at: msg.artifactTitle }),
+    ...(msg.artifactVersion && { av: msg.artifactVersion }),
+    ...(msg.isError && { er: 1 }),
+    ...(msg.stopped && { st: 1 }),
+    ...(msg.expired && { ex: 1 }),
+    ...(msg.persistable === false && { np: 1 }),
   }));
 };
 
@@ -27,12 +37,22 @@ export const decompressMessages = (compressed) => {
   if (!compressed || compressed.length === 0) return [];
   
   return compressed.map(msg => ({
+    ...(msg.i && { id: msg.i }),
     role: msg.r === 'u' ? 'user' : 'assistant',
     content: msg.c,
     type: msg.t === 't' ? 'text' : 'image',
     timestamp: new Date(msg.ts).toISOString(),
     ...(msg.p && { prompt: msg.p }),
+    ...(msg.op && { originalPrompt: msg.op }),
     ...(msg.m && { modelUsed: msg.m }),
+    ...(msg.pv && { provider: msg.pv }),
+    ...(msg.ai && { artifactId: msg.ai }),
+    ...(msg.at && { artifactTitle: msg.at }),
+    ...(msg.av && { artifactVersion: msg.av }),
+    ...(msg.er && { isError: true }),
+    ...(msg.st && { stopped: true }),
+    ...(msg.ex && { expired: true }),
+    ...(msg.np && { persistable: false }),
   }));
 };
 

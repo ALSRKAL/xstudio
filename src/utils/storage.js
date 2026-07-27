@@ -11,6 +11,7 @@ import {
   normalizeImageModelId,
   normalizeModelId,
 } from '../config/api';
+import { deleteArtifactsForChat } from '../services/artifactStore';
 
 export const STORAGE_KEYS = {
   CHAT_HISTORY: 'x_studio_chat_history',
@@ -29,6 +30,13 @@ let saveTimer = null;
 // In-memory cache for current chat to reduce localStorage reads
 let currentChatCache = null;
 let currentChatCacheId = null;
+
+const removePrunedChat = (chatId) => {
+  localStorage.removeItem(`${STORAGE_KEYS.CHAT_PREFIX}${chatId}`);
+  deleteArtifactsForChat(chatId).catch((error) => {
+    console.error('Error cleaning up pruned chat artifacts:', error);
+  });
+};
 
 /**
  * Inline base64 images are hundreds of KB each and would exhaust the ~5 MB
@@ -106,7 +114,7 @@ export const saveChat = (chatId, messages, mode) => {
     // Clean up old chats beyond limit
     if (history.length > 50) {
       history.slice(50).forEach(chat => {
-        localStorage.removeItem(`${STORAGE_KEYS.CHAT_PREFIX}${chat.id}`);
+        removePrunedChat(chat.id);
       });
     }
 
@@ -263,7 +271,7 @@ const cleanupOldChats = () => {
     const toDelete = history.slice(30);
     
     toDelete.forEach(chat => {
-      localStorage.removeItem(`${STORAGE_KEYS.CHAT_PREFIX}${chat.id}`);
+      removePrunedChat(chat.id);
     });
     
     localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(toKeep));

@@ -10,6 +10,7 @@ import { streamChat, ERROR_CODES } from '../services/aiClient';
 import { processImageGeneration } from '../utils/imageGenerator';
 import { buildSystemPrompt } from '../config/prompts';
 import {
+  APP_CONFIG,
   DEVICE_TOTAL_LIMIT,
   getLimitsForModel,
   getModelInfo,
@@ -23,6 +24,12 @@ import {
   incrementDeviceUsage,
 } from '../utils/usageTracker';
 import { extractSmartContext, enhanceImagePromptWithContext } from '../utils/contextManager';
+import {
+  detectArtifactEditIntent,
+  detectArtifactIntent,
+  parseArtifactResponse,
+  parseFencedArtifactResponse,
+} from '../services/artifactProtocol';
 
 const ERROR_KEYS = {
   [ERROR_CODES.OFFLINE]: 'errOffline',
@@ -46,6 +53,8 @@ export const useMessageSender = ({
   notify,
   onActivity,
   createNewChatIfNeeded,
+  artifactProject,
+  onArtifact,
 }) => {
   const [loading, setLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -105,13 +114,15 @@ export const useMessageSender = ({
 
   // ---- text ---------------------------------------------------------------
   const runText = useCallback(
-    async (promptText, history) => {
+    async (promptText, history, chatId) => {
       const limitError = checkLimits();
       if (limitError) {
         notify(limitError, { type: 'warning', duration: 7000 });
         return;
       }
 
+      const artifactMode = detectArtifactIntent(promptText)
+        || (!!artifactProject && detectArtifactEditIntent(promptText));
       const messageId = newId();
       setMessages((prev) => [
         ...prev,
@@ -123,6 +134,7 @@ export const useMessageSender = ({
           timestamp: new Date().toISOString(),
           modelUsed: selectedModel,
           streaming: true,
+          artifactBuilding: artifactMode,
         },
       ]);
 
@@ -141,20 +153,49 @@ export const useMessageSender = ({
           systemPrompt: buildSystemPrompt({
             language,
             isArabicPrompt: hasArabic(promptText),
+            artifactMode,
+            artifactProject: artifactMode ? artifactProject : null,
           }),
           messages: [...contextMessages, { role: 'user', content: promptText }],
           signal: controller.signal,
-          onToken: (full) => scheduleUpdate(messageId, full),
+          maxTokens: artifactMode ? APP_CONFIG.artifacts.maxTokens : undefined,
+          onToken: (full) => {
+            const parsed = artifactMode
+              ? parseArtifactResponse(full, APP_CONFIG.artifacts)
+              : { visibleText: full };
+            scheduleUpdate(messageId, parsed.visibleText);
+          },
         });
 
         cancelPending();
+        let parsed = artifactMode
+          ? parseArtifactResponse(result.content, APP_CONFIG.artifacts)
+          : { visibleText: result.content, status: 'none', project: null };
+        if (artifactMode && parsed.status !== 'complete') {
+          parsed = parseFencedArtifactResponse(result.content, APP_CONFIG.artifacts) || parsed;
+        }
+        let savedArtifact = null;
+
+        if (parsed.status === 'complete' && parsed.project && onArtifact) {
+          savedArtifact = await onArtifact(parsed.project, { chatId, prompt: promptText });
+        }
+
+        const artifactFailed = artifactMode && (!savedArtifact || parsed.status !== 'complete');
+        const visibleContent = parsed.visibleText.trim()
+          || (savedArtifact ? t('artifactReady') : result.content.trim());
+
         setMessages((prev) =>
           prev.map((m) =>
             m.id === messageId
               ? {
                   ...m,
-                  content: result.content,
+                  content: visibleContent || t('artifactInvalid'),
                   streaming: false,
+                  artifactBuilding: false,
+                  artifactError: artifactFailed,
+                  artifactId: savedArtifact?.id,
+                  artifactTitle: savedArtifact?.title,
+                  artifactVersion: savedArtifact?.version,
                   provider: result.provider,
                   modelUsed: result.fallback ? `${result.provider}:${result.model}` : selectedModel,
                 }
@@ -162,6 +203,7 @@ export const useMessageSender = ({
           )
         );
 
+        if (artifactFailed) notify(t('artifactInvalid'), { type: 'warning', duration: 7000 });
         if (!isKeylessModel(selectedModel)) incrementDeviceUsage(selectedModel);
         if (result.fallback) notify(t('fallbackUsed'), { type: 'warning' });
       } catch (error) {
@@ -171,7 +213,9 @@ export const useMessageSender = ({
           // Keep whatever was already streamed - it is still useful.
           setMessages((prev) =>
             prev
-              .map((m) => (m.id === messageId ? { ...m, streaming: false, stopped: true } : m))
+              .map((m) => (m.id === messageId
+                ? { ...m, streaming: false, stopped: true, artifactBuilding: false }
+                : m))
               .filter((m) => m.id !== messageId || m.content.trim())
           );
           return;
@@ -181,7 +225,7 @@ export const useMessageSender = ({
         setMessages((prev) =>
           prev.map((m) =>
             m.id === messageId
-              ? { ...m, content: t(key), streaming: false, isError: true }
+              ? { ...m, content: t(key), streaming: false, artifactBuilding: false, isError: true }
               : m
           )
         );
@@ -194,6 +238,8 @@ export const useMessageSender = ({
     [
       checkLimits,
       language,
+      artifactProject,
+      onArtifact,
       notify,
       scheduleUpdate,
       cancelPending,
@@ -257,7 +303,7 @@ export const useMessageSender = ({
       const text = (promptText || '').trim();
       if (!text || loading) return;
 
-      createNewChatIfNeeded?.();
+      const chatId = createNewChatIfNeeded?.();
       const history = messages;
 
       setMessages((prev) => [
@@ -275,7 +321,7 @@ export const useMessageSender = ({
 
       try {
         if (mode === 'image') await runImage(text, history);
-        else await runText(text, history);
+        else await runText(text, history, chatId);
       } finally {
         setLoading(false);
       }
@@ -316,12 +362,12 @@ export const useMessageSender = ({
         const isImage = userMessage.type === 'image';
         const priorHistory = history.slice(0, -1);
         if (isImage) await runImage(userMessage.content, priorHistory);
-        else await runText(userMessage.content, priorHistory);
+        else await runText(userMessage.content, priorHistory, createNewChatIfNeeded?.());
       } finally {
         setLoading(false);
       }
     },
-    [loading, messages, notify, onActivity, runImage, runText, setMessages, t]
+    [createNewChatIfNeeded, loading, messages, notify, onActivity, runImage, runText, setMessages, t]
   );
 
   const stop = useCallback(() => {
@@ -330,7 +376,9 @@ export const useMessageSender = ({
     cancelPending();
     setIsStreaming(false);
     setLoading(false);
-    setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
+    setMessages((prev) => prev.map((m) => (m.streaming
+      ? { ...m, streaming: false, artifactBuilding: false }
+      : m)));
   }, [cancelPending, setMessages]);
 
   return { loading, isStreaming, send, regenerate, stop };

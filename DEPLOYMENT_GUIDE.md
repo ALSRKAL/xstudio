@@ -29,7 +29,7 @@ not run the functions at all.
 ## 3. Verify before shipping
 
 ```bash
-npm test                  # 18 unit + app smoke tests
+npm test                  # unit, security, workspace + app smoke tests
 npm run verify:functions  # calls the real chat/models functions end to end
 npm run build             # production build
 ```
@@ -99,14 +99,18 @@ In the browser, confirm:
 - the model picker lists your providers and switching models persists
 - Arabic input answers in Arabic and code blocks stay left-to-right
 - image mode returns an image and the download button works
+- website-building prompts open the side Workspace with editable files
+- Preview renders at desktop/tablet/mobile sizes and reloads after file edits
+- preview source has a restrictive CSP and the iframe has only `allow-scripts`
 - dark/light theme and language switches persist after a reload
 
 ## 7. Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `No AI provider is configured` | no key and the keyless provider is down | add a free key (env var or Settings) |
+| `No AI provider is configured` | no key and the keyless provider is down | configure a server environment variable |
 | Replies work locally but not deployed | env variables not set, or site not redeployed | add variables, then trigger a redeploy |
+| Function routes return 404 on port 3000 | `npm start` is frontend-only by design | use `npm run dev` and open `http://localhost:8888`; port 3000 now skips missing routes automatically |
 | Only one provider in the picker | other keys missing or invalid | check the variable names in the table above |
 | `Too many requests` | per-IP rate limit (30/min) or upstream limit | wait a moment, or add a provider key |
 | Chat 404 with `npm start` | functions are not running | use `npm run dev` |

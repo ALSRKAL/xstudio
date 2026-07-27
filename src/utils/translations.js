@@ -191,6 +191,28 @@ export const translations = {
     shortcutNewChat: 'محادثة جديدة: Ctrl+K',
     textModels: 'نماذج نصية',
     imageModels: 'نماذج صور',
+
+    // Workspace
+    workspaceTitle: 'مساحة العمل',
+    preview: 'المعاينة',
+    files: 'ملفات',
+    preparingProject: 'جاري بناء المشروع...',
+    reloadPreview: 'إعادة تحميل المعاينة',
+    closeWorkspace: 'إغلاق مساحة العمل',
+    previewSize: 'حجم المعاينة',
+    desktop: 'سطح المكتب',
+    tablet: 'جهاز لوحي',
+    mobile: 'هاتف',
+    projectFiles: 'ملفات المشروع',
+    editFile: 'تحرير الملف',
+    previewFailed: 'تعذر تشغيل المعاينة بأمان.',
+    openWorkspace: 'فتح المشروع والمعاينة',
+    artifactReady: 'اكتمل بناء المشروع وأصبح جاهزاً للمعاينة والتعديل.',
+    artifactBuilding: 'يبني المشروع وملفاته الآن...',
+    artifactInvalid: 'لم يكتمل المشروع بصيغة قابلة للتشغيل. أعد التوليد للمحاولة مرة أخرى.',
+    artifactSaveFailed: 'تعذر حفظ المشروع في هذا المتصفح.',
+    artifactNotFound: 'لم يعد هذا المشروع متاحاً على الجهاز.',
+
     imageExpired: 'هذه الصورة لم تُحفظ لأن المزوّد أرجعها كبيانات مباشرة. أعد التوليد لعرضها.',
   },
   
@@ -384,6 +406,28 @@ export const translations = {
     shortcutNewChat: 'New chat: Ctrl+K',
     textModels: 'Text models',
     imageModels: 'Image models',
+
+    // Workspace
+    workspaceTitle: 'Workspace',
+    preview: 'Preview',
+    files: 'Files',
+    preparingProject: 'Building the project...',
+    reloadPreview: 'Reload preview',
+    closeWorkspace: 'Close workspace',
+    previewSize: 'Preview size',
+    desktop: 'Desktop',
+    tablet: 'Tablet',
+    mobile: 'Mobile',
+    projectFiles: 'Project files',
+    editFile: 'Edit file',
+    previewFailed: 'The preview could not run safely.',
+    openWorkspace: 'Open project and preview',
+    artifactReady: 'The project is built and ready to preview and edit.',
+    artifactBuilding: 'Building the project and its files...',
+    artifactInvalid: 'The project did not finish in a runnable format. Regenerate to try again.',
+    artifactSaveFailed: 'The project could not be saved in this browser.',
+    artifactNotFound: 'This project is no longer available on this device.',
+
     imageExpired: 'This image was returned inline and is not stored. Regenerate it to view.',
   }
 };

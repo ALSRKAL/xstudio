@@ -104,7 +104,9 @@ export const useChatLogic = () => {
       if (currentChatId === chatId) {
         startNewChat();
       }
+      return true;
     }
+    return false;
   }, [currentChatId, startNewChat]);
 
   const createNewChatIfNeeded = useCallback(() => {

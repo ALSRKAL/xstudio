@@ -11,6 +11,7 @@ import {
 import { getAssistantIcon } from './config/icons';
 import { useChatLogic } from './hooks/useChatLogic';
 import { useLanguageDetection } from './hooks/useLanguageDetection';
+import { useArtifactWorkspace } from './hooks/useArtifactWorkspace';
 import { useMessageSender } from './hooks/useMessageSender';
 import { useModelCatalog } from './hooks/useModelCatalog';
 import { useToast } from './hooks/useToast';
@@ -24,6 +25,7 @@ import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import ModelSelector from './components/ModelSelector';
 import SettingsDialog from './components/SettingsDialog';
+import ArtifactWorkspace from './components/workspace/ArtifactWorkspace';
 import ToastStack from './components/Toast';
 import './App.css';
 
@@ -71,6 +73,28 @@ function App() {
     createNewChatIfNeeded,
     refreshChatHistory,
   } = useChatLogic();
+
+  const {
+    project: artifactProject,
+    isOpen: workspaceOpen,
+    loading: workspaceLoading,
+    tab: workspaceTab,
+    selectedPath: workspaceSelectedPath,
+    previewRevision,
+    setTab: setWorkspaceTab,
+    setSelectedPath: setWorkspaceSelectedPath,
+    acceptGeneratedProject,
+    openArtifact,
+    updateFile: updateArtifactFile,
+    closeWorkspace,
+    reloadPreview,
+    removeChatArtifacts,
+    removeAllArtifacts,
+  } = useArtifactWorkspace({
+    currentChatId,
+    notify,
+    t,
+  });
 
   const selectedModel = normalizeModelId(settings.model || DEFAULT_MODEL);
   const selectedModelInfo = resolveSelected(selectedModel);
@@ -165,6 +189,8 @@ function App() {
     notify,
     onActivity: handleActivity,
     createNewChatIfNeeded,
+    artifactProject,
+    onArtifact: acceptGeneratedProject,
   });
 
   const handleGenerate = useCallback(async () => {
@@ -192,10 +218,11 @@ function App() {
   // ---- global shortcuts --------------------------------------------------
   const handleNewChat = useCallback(() => {
     startNewChat();
+    closeWorkspace();
     setSidebarOpen(false);
     setPrompt('');
     focusInput();
-  }, [focusInput, startNewChat]);
+  }, [closeWorkspace, focusInput, startNewChat]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -203,6 +230,7 @@ function App() {
         setShowModelSelector(false);
         setShowSettings(false);
         setSidebarOpen(false);
+        closeWorkspace();
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -212,7 +240,7 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleNewChat]);
+  }, [closeWorkspace, handleNewChat]);
 
   // ---- message actions ---------------------------------------------------
   const handleCopy = useCallback(
@@ -296,16 +324,20 @@ function App() {
 
   const handleLoadChat = useCallback(
     (chatId) => {
+      closeWorkspace();
       loadChat(chatId);
       setSidebarOpen(false);
       requestAnimationFrame(() => scrollToBottom('auto', true));
     },
-    [loadChat, scrollToBottom]
+    [closeWorkspace, loadChat, scrollToBottom]
   );
 
   const handleDeleteChatWithLabel = useCallback(
-    (chatId, event) => handleDeleteChat(chatId, event, t),
-    [handleDeleteChat, t]
+    (chatId, event) => {
+      const removed = handleDeleteChat(chatId, event, t);
+      if (removed) removeChatArtifacts(chatId);
+    },
+    [handleDeleteChat, removeChatArtifacts, t]
   );
 
   const handleSelectModel = useCallback(
@@ -337,12 +369,13 @@ function App() {
       notify(t('errGeneric'), { type: 'error' });
       return;
     }
+    removeAllArtifacts();
     startNewChat();
     refreshChatHistory();
     setSidebarOpen(false);
     setShowSettings(false);
     notify(t('chatsCleared'), { type: 'success' });
-  }, [notify, refreshChatHistory, startNewChat, t]);
+  }, [notify, refreshChatHistory, removeAllArtifacts, startNewChat, t]);
 
   // ---- render data -------------------------------------------------------
   const visibleMessages = useMemo(() => {
@@ -387,7 +420,8 @@ function App() {
         />
       )}
 
-      <div className="main-content">
+      <div className={`studio-shell ${workspaceOpen ? 'workspace-open' : ''}`}>
+        <div className="main-content">
         <div className="chat-container">
           {messages.length === 0 ? (
             <WelcomeScreen mode={mode} onPromptClick={setPrompt} language={settings.language} />
@@ -417,6 +451,7 @@ function App() {
                   onDownloadImage={downloadImage}
                   onImageLoad={handleImageLoad}
                   onImageError={handleImageError}
+                  onOpenArtifact={openArtifact}
                   detectLanguage={detectLanguage}
                   selectedModel={selectedModel}
                   language={settings.language}
@@ -466,6 +501,22 @@ function App() {
           onModeChange={setMode}
           language={settings.language}
           modelName={activeModelInfo.name}
+        />
+        </div>
+
+        <ArtifactWorkspace
+          project={artifactProject}
+          isOpen={workspaceOpen}
+          loading={workspaceLoading}
+          tab={workspaceTab}
+          selectedPath={workspaceSelectedPath}
+          previewRevision={previewRevision}
+          onTabChange={setWorkspaceTab}
+          onSelectFile={setWorkspaceSelectedPath}
+          onUpdateFile={updateArtifactFile}
+          onReload={reloadPreview}
+          onClose={closeWorkspace}
+          language={settings.language}
         />
       </div>
 

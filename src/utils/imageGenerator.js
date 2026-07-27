@@ -1,7 +1,12 @@
 // Image Generation utilities with Arabic translation support
 
 import { translateToEnglish } from '../services/aiClient';
-import { APP_CONFIG, DEFAULT_IMAGE_MODEL, normalizeImageModelId } from '../config/api';
+import {
+  APP_CONFIG,
+  DEFAULT_IMAGE_MODEL,
+  normalizeImageModelId,
+  shouldUseBackendFunctions,
+} from '../config/api';
 import { getApiKeys } from './apiKeys';
 
 /**
@@ -94,6 +99,18 @@ export const generateImageUrl = (prompt, seed = null) => {
   return `${fallbackBaseUrl}/${encodeURIComponent(prompt)}?${params.toString()}`;
 };
 
+const directImageResult = (finalPrompt, userPrompt, wasTranslated, seed) => ({
+  success: true,
+  imageUrl: generateImageUrl(finalPrompt, seed),
+  persistable: true,
+  provider: 'pollinations',
+  model: DEFAULT_IMAGE_MODEL,
+  fallback: true,
+  originalPrompt: userPrompt,
+  processedPrompt: finalPrompt,
+  wasTranslated,
+});
+
 /**
  * Translate (if needed), enrich, then generate through the backend so provider
  * keys never reach the browser.
@@ -111,6 +128,10 @@ export const processImageGeneration = async (userPrompt, options = {}) => {
 
     finalPrompt = enhanceImagePrompt(finalPrompt);
 
+    if (!shouldUseBackendFunctions()) {
+      return directImageResult(finalPrompt, userPrompt, wasTranslated, options.seed);
+    }
+
     const response = await fetch(APP_CONFIG.endpoints.image, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -124,18 +145,9 @@ export const processImageGeneration = async (userPrompt, options = {}) => {
       }),
     });
 
-    // Backend function missing (plain CRA dev server): keyless direct URL.
+    // Backend function missing: keyless direct URL.
     if (response.status === 404 || response.status === 405) {
-      return {
-        success: true,
-        imageUrl: generateImageUrl(finalPrompt, options.seed),
-        persistable: true,
-        provider: 'pollinations',
-        model: DEFAULT_IMAGE_MODEL,
-        originalPrompt: userPrompt,
-        processedPrompt: finalPrompt,
-        wasTranslated,
-      };
+      return directImageResult(finalPrompt, userPrompt, wasTranslated, options.seed);
     }
 
     const data = await response.json().catch(() => ({}));

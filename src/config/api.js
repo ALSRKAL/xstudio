@@ -13,11 +13,22 @@ export const APP_CONFIG = {
   version: '2.0.0',
   contactUrl: 'https://www.alsrkal.com/',
 
-  // Backend function endpoints. Keep in one place only.
+  // Serverless functions are available in production and through `npm run dev`.
+  // Plain CRA (`npm start`, localhost:3000) uses the direct keyless fallbacks.
   endpoints: {
     chat: '/.netlify/functions/chat',
     models: '/.netlify/functions/models',
     image: '/.netlify/functions/image',
+  },
+
+  artifacts: {
+    runtime: 'static',
+    maxFiles: 24,
+    maxFileBytes: 60000,
+    maxTotalBytes: 140000,
+    maxTokens: 20000,
+    saveDelayMs: 350,
+    maxVersions: 12,
   },
 
   // Direct (keyless) fallback used when the backend function is unreachable
@@ -25,6 +36,7 @@ export const APP_CONFIG = {
   // Keyless, OpenAI-compatible endpoint called straight from the browser when
   // the Netlify function is unavailable (plain `npm start`, cold deploy).
   fallback: {
+    provider: 'llm7',
     chatUrl: 'https://api.llm7.io/v1/chat/completions',
     model: 'gemini-3.1-flash-lite',
   },
@@ -49,6 +61,24 @@ export const APP_CONFIG = {
     retries: 1,
     retryDelayMs: 800,
   },
+};
+
+/**
+ * Whether this browser origin can serve the serverless function routes.
+ * An explicit CRA variable wins; localhost:3000 is the frontend-only server.
+ */
+export const shouldUseBackendFunctions = () => {
+  const override = process.env.REACT_APP_USE_BACKEND_FUNCTIONS;
+  if (override === 'true') return true;
+  if (override === 'false') return false;
+
+  if (typeof window !== 'undefined') {
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+    if (localHosts.has(window.location.hostname) && window.location.port === '3000') {
+      return false;
+    }
+  }
+  return true;
 };
 
 /** Text generation defaults */

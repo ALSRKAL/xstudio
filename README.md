@@ -16,8 +16,13 @@ image generation. Keys stay on the server.
   before you configure anything.
 - **Automatic fallback** — transient errors retry, then fall back to the keyless
   provider instead of failing.
-- **Image generation** — keyless (Pollinations/FLUX) with automatic Arabic →
-  English prompt translation and prompt enrichment.
+- **Interactive Workspace** — website and UI requests become editable multi-file
+  projects with a live responsive preview beside the conversation. Generated code
+  is isolated in an opaque sandbox with network access disabled.
+- **Professional answers** — task-aware prompting produces direct, structured,
+  complete responses and preserves project context for conversational revisions.
+- **Image generation** — keyless Pollinations/Sana, with optional FLUX providers,
+  automatic Arabic → English prompt translation, retries and fallback.
 - **Bilingual UI (ar/en)** with full RTL, light/dark themes, chat history with
   search, local storage compression, and per-device usage limits.
 
@@ -103,8 +108,13 @@ src/
   config/prompts.js        System prompts
   services/aiClient.js     Streaming client: abort, retry, keyless fallback
   services/sseParser.js    SSE token parser (unit tested)
-  hooks/useMessageSender.js  Send / regenerate / stop - one pipeline
-  hooks/useModelCatalog.js   Model discovery + local cache
+  services/artifactProtocol.js  Streaming-safe project protocol + validation
+  services/artifactStore.js     IndexedDB project persistence + version snapshots
+  services/previewCompiler.js   CSP-hardened static preview compiler
+  hooks/useMessageSender.js     Send / regenerate / stop / artifact pipeline
+  hooks/useArtifactWorkspace.js Workspace state, editing and preview lifecycle
+  hooks/useModelCatalog.js      Model discovery + local cache
+  components/workspace/         Editable files + responsive sandboxed preview
   hooks/useChatLogic.js      Chat persistence
   hooks/useToast.js          Non-blocking notifications
   components/               Sidebar, ChatMessage, ChatInput, ModelSelector, Settings, Toast
@@ -119,6 +129,8 @@ model list, picker grouping and fallback logic pick it up automatically.
 
 - API keys live in server-side environment variables; the browser bundle has none.
 - Provider keys are not exposed or editable in the public Settings dialog.
+- Generated websites run in an opaque-origin iframe with a restrictive CSP;
+  network requests, forms, nested frames, plugins and top navigation are blocked.
 - The chat function validates method, JSON, roles, message count and payload size,
   and applies a per-IP rate limit.
 - Security headers (`nosniff`, `SAMEORIGIN`, referrer policy, permissions policy)

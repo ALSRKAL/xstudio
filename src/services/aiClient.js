@@ -17,6 +17,7 @@ import {
   buildModelMeta,
   normalizeModelId,
   DEFAULT_MODEL,
+  shouldUseBackendFunctions,
 } from '../config/api';
 import { getApiKeys } from '../utils/apiKeys';
 import { readSseStream } from './sseParser';
@@ -117,7 +118,7 @@ const streamDirectFallback = async ({ messages, onToken, signal }) => {
   const content = await readStream(response, onToken);
   return {
     content,
-    provider: 'pollinations',
+    provider: APP_CONFIG.fallback.provider,
     model: APP_CONFIG.fallback.model,
     fallback: true,
   };
@@ -154,6 +155,10 @@ export const streamChat = async ({
 
   const { retries, retryDelayMs } = APP_CONFIG.network;
   let lastError;
+
+  if (!shouldUseBackendFunctions()) {
+    return streamDirectFallback({ messages: payload.messages, onToken, signal });
+  }
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
@@ -212,12 +217,30 @@ export const streamChat = async ({
 
 /** Single-shot completion (no streaming) - used for translation & utilities */
 export const completeChat = async ({ model, messages, systemPrompt, temperature, maxTokens }) => {
+  const preparedMessages = prepareMessages(messages || [], systemPrompt);
+  const completeDirectly = async () => {
+    const direct = await fetch(APP_CONFIG.fallback.chatUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: APP_CONFIG.fallback.model,
+        messages: preparedMessages,
+        stream: false,
+      }),
+    });
+    if (!direct.ok) throw await mapHttpError(direct);
+    const data = await direct.json();
+    return data?.choices?.[0]?.message?.content || '';
+  };
+
+  if (!shouldUseBackendFunctions()) return completeDirectly();
+
   const response = await fetch(APP_CONFIG.endpoints.chat, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: normalizeModelId(model) || DEFAULT_MODEL,
-      messages: prepareMessages(messages || [], systemPrompt),
+      messages: preparedMessages,
       stream: false,
       temperature: temperature ?? 0.2,
       max_tokens: maxTokens ?? 800,
@@ -225,21 +248,7 @@ export const completeChat = async ({ model, messages, systemPrompt, temperature,
     }),
   });
 
-  if (response.status === 404 || response.status === 405) {
-    const direct = await fetch(APP_CONFIG.fallback.chatUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: APP_CONFIG.fallback.model,
-        messages: prepareMessages(messages || [], systemPrompt),
-        stream: false,
-      }),
-    });
-    if (!direct.ok) throw await mapHttpError(direct);
-    const data = await direct.json();
-    return data?.choices?.[0]?.message?.content || '';
-  }
-
+  if (response.status === 404 || response.status === 405) return completeDirectly();
   if (!response.ok) throw await mapHttpError(response);
   const data = await response.json();
   return data?.content || '';
@@ -250,6 +259,10 @@ export const completeChat = async ({ model, messages, systemPrompt, temperature,
  * Falls back to the offline catalog so the UI always has something to show.
  */
 export const fetchAvailableModels = async ({ refresh = false } = {}) => {
+  if (!shouldUseBackendFunctions()) {
+    return { models: FALLBACK_MODELS, imageModels: [], live: false };
+  }
+
   try {
     const response = await fetch(APP_CONFIG.endpoints.models, {
       method: 'POST',

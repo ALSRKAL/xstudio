@@ -8,6 +8,7 @@ import {
   isKeylessModel,
   normalizeModelId,
   prettifyModelName,
+  shouldUseBackendFunctions,
   splitModelId,
 } from './api';
 
@@ -111,5 +112,24 @@ describe('OpenRouter catalogue', () => {
     expect(meta.tags).toContain('reasoning');
     expect(meta.tags).toContain('code');
     expect(meta.description).toBe('A coding model.');
+  });
+});
+
+describe('backend function availability', () => {
+  const original = process.env.REACT_APP_USE_BACKEND_FUNCTIONS;
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.REACT_APP_USE_BACKEND_FUNCTIONS;
+    else process.env.REACT_APP_USE_BACKEND_FUNCTIONS = original;
+  });
+
+  it('honours the explicit frontend-only override', () => {
+    process.env.REACT_APP_USE_BACKEND_FUNCTIONS = 'false';
+    expect(shouldUseBackendFunctions()).toBe(false);
+  });
+
+  it('honours the explicit full-stack override', () => {
+    process.env.REACT_APP_USE_BACKEND_FUNCTIONS = 'true';
+    expect(shouldUseBackendFunctions()).toBe(true);
   });
 });
