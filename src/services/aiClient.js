@@ -13,6 +13,7 @@ import {
   APP_CONFIG,
   GENERATION_DEFAULTS,
   FALLBACK_MODELS,
+  buildImageModelMeta,
   buildModelMeta,
   normalizeModelId,
   DEFAULT_MODEL,
@@ -261,16 +262,22 @@ export const fetchAvailableModels = async ({ refresh = false } = {}) => {
     const data = await response.json();
     const models = (data?.models || []).map((m) =>
       buildModelMeta(m.id, {
+        label: m.label || null,
+        description: m.description || null,
         contextWindow: m.contextWindow || null,
+        maxOutput: m.maxOutput || null,
         vision: !!m.vision,
+        reasoning: !!m.reasoning,
+        tools: !!m.tools,
         free: true,
       })
     );
+    const imageModels = (data?.imageModels || []).map((m) => buildImageModelMeta(m.id));
 
-    if (!models.length) return { models: FALLBACK_MODELS, live: false };
-    return { models, live: true, updatedAt: data.updatedAt };
+    if (!models.length) return { models: FALLBACK_MODELS, imageModels, live: false };
+    return { models, imageModels, live: true, updatedAt: data.updatedAt };
   } catch {
-    return { models: FALLBACK_MODELS, live: false };
+    return { models: FALLBACK_MODELS, imageModels: [], live: false };
   }
 };
 

@@ -5,7 +5,12 @@ import {
   optimizeMessagesForStorage,
   checkStorageHealth
 } from './contextCompression';
-import { DEFAULT_MODEL, normalizeModelId } from '../config/api';
+import {
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_MODEL,
+  normalizeImageModelId,
+  normalizeModelId,
+} from '../config/api';
 
 export const STORAGE_KEYS = {
   CHAT_HISTORY: 'x_studio_chat_history',
@@ -25,19 +30,35 @@ let saveTimer = null;
 let currentChatCache = null;
 let currentChatCacheId = null;
 
+/**
+ * Inline base64 images are hundreds of KB each and would exhaust the ~5 MB
+ * localStorage budget in a handful of messages. They are dropped on save and
+ * marked so the UI can offer a regenerate instead of a broken image.
+ */
+const stripInlineImages = (messages) =>
+  messages.map((message) => {
+    const isInline =
+      message.type === 'image' &&
+      typeof message.content === 'string' &&
+      (message.persistable === false || message.content.startsWith('data:'));
+
+    if (!isInline) return message;
+    return { ...message, content: '', expired: true };
+  });
+
 export const saveChat = (chatId, messages, mode) => {
   try {
     // Check storage health before saving
     const storageHealth = checkStorageHealth();
-    
+
     // Optimize messages based on storage health
-    let optimizedMessages = messages;
+    let optimizedMessages = stripInlineImages(messages);
     if (storageHealth.usagePercent > 70) {
       // If storage is getting full, optimize more aggressively
-      optimizedMessages = optimizeMessagesForStorage(messages, 300);
+      optimizedMessages = optimizeMessagesForStorage(optimizedMessages, 300);
     } else if (messages.length > 100) {
       // For long conversations, always optimize
-      optimizedMessages = optimizeMessagesForStorage(messages, 500);
+      optimizedMessages = optimizeMessagesForStorage(optimizedMessages, 500);
     }
     
     // Compress messages for storage
@@ -108,7 +129,7 @@ export const saveChat = (chatId, messages, mode) => {
       cleanupOldChats();
       // Try again with more aggressive optimization
       try {
-        const veryOptimized = optimizeMessagesForStorage(messages, 200);
+        const veryOptimized = optimizeMessagesForStorage(stripInlineImages(messages), 200);
         const compressed = compressMessages(veryOptimized);
         const chatData = {
           id: chatId,
@@ -291,6 +312,7 @@ export const DEFAULT_SETTINGS = {
   language: 'ar',
   theme: 'light',
   model: DEFAULT_MODEL,
+  imageModel: DEFAULT_IMAGE_MODEL,
 };
 
 export const getSettings = () => {
@@ -300,8 +322,9 @@ export const getSettings = () => {
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
-      // migrate legacy model ids (e.g. "base") to the canonical form
+      // migrate legacy model ids (e.g. "base", "pollinations:flux")
       model: normalizeModelId(parsed.model || DEFAULT_SETTINGS.model),
+      imageModel: normalizeImageModelId(parsed.imageModel || DEFAULT_SETTINGS.imageModel),
     };
   } catch (error) {
     console.error('Error getting settings:', error);

@@ -1,7 +1,8 @@
 // Image Generation utilities with Arabic translation support
 
 import { translateToEnglish } from '../services/aiClient';
-import { APP_CONFIG } from '../config/api';
+import { APP_CONFIG, DEFAULT_IMAGE_MODEL, normalizeImageModelId } from '../config/api';
+import { getApiKeys } from './apiKeys';
 
 /**
  * Detects if text contains Arabic characters
@@ -74,45 +75,84 @@ export const enhanceImagePrompt = (prompt) => {
 /**
  * Generates optimized image URL with enhanced parameters
  */
+/**
+ * Keyless direct URL, used only when the backend function is unreachable
+ * (plain `npm start`). Everything else goes through the image function so that
+ * provider keys stay on the server.
+ */
 export const generateImageUrl = (prompt, seed = null) => {
-  const { baseUrl, width, height, model, nologo, enhance } = APP_CONFIG.images;
+  const { fallbackBaseUrl, fallbackModel, width, height } = APP_CONFIG.images;
   const params = new URLSearchParams({
     width: String(width),
     height: String(height),
-    model,
+    model: fallbackModel,
     seed: String(seed || Date.now()),
-    nologo: String(nologo),
-    enhance: String(enhance),
+    nologo: 'true',
+    referrer: 'x-studio',
   });
 
-  return `${baseUrl}/${encodeURIComponent(prompt)}?${params.toString()}`;
+  return `${fallbackBaseUrl}/${encodeURIComponent(prompt)}?${params.toString()}`;
 };
 
 /**
- * Main function to process and generate image
- * Handles Arabic translation silently
+ * Translate (if needed), enrich, then generate through the backend so provider
+ * keys never reach the browser.
+ *
+ * @returns {Promise<{success: boolean, imageUrl?: string, persistable?: boolean,
+ *   model?: string, provider?: string, fallback?: boolean, error?: string}>}
  */
-export const processImageGeneration = async (userPrompt) => {
+export const processImageGeneration = async (userPrompt, options = {}) => {
+  const wasTranslated = hasArabicText(userPrompt);
+
   try {
-    let finalPrompt = userPrompt;
-    
-    // Step 1: Translate if Arabic (silent)
-    if (hasArabicText(userPrompt)) {
-      finalPrompt = await translateArabicToEnglish(userPrompt);
-    }
-    
-    // Step 2: Enhance prompt with quality descriptors
+    let finalPrompt = wasTranslated
+      ? await translateArabicToEnglish(userPrompt)
+      : userPrompt;
+
     finalPrompt = enhanceImagePrompt(finalPrompt);
-    
-    // Step 3: Generate image URL
-    const imageUrl = generateImageUrl(finalPrompt);
-    
+
+    const response = await fetch(APP_CONFIG.endpoints.image, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: finalPrompt,
+        model: normalizeImageModelId(options.model),
+        width: options.width || APP_CONFIG.images.width,
+        height: options.height || APP_CONFIG.images.height,
+        seed: options.seed,
+        keys: getApiKeys(),
+      }),
+    });
+
+    // Backend function missing (plain CRA dev server): keyless direct URL.
+    if (response.status === 404 || response.status === 405) {
+      return {
+        success: true,
+        imageUrl: generateImageUrl(finalPrompt, options.seed),
+        persistable: true,
+        provider: 'pollinations',
+        model: DEFAULT_IMAGE_MODEL,
+        originalPrompt: userPrompt,
+        processedPrompt: finalPrompt,
+        wasTranslated,
+      };
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || `Image request failed (${response.status})`);
+    }
+
     return {
       success: true,
-      imageUrl,
+      imageUrl: data.url,
+      persistable: data.persistable !== false,
+      provider: data.provider,
+      model: data.model,
+      fallback: !!data.fallback,
       originalPrompt: userPrompt,
       processedPrompt: finalPrompt,
-      wasTranslated: hasArabicText(userPrompt),
+      wasTranslated,
     };
   } catch (error) {
     console.error('Image generation error:', error);

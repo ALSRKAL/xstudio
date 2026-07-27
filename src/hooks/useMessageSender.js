@@ -40,6 +40,7 @@ export const useMessageSender = ({
   setMessages,
   mode,
   selectedModel,
+  selectedImageModel,
   language,
   t,
   notify,
@@ -210,7 +211,7 @@ export const useMessageSender = ({
           promptText,
           history.filter((m) => m.type === 'image')
         );
-        const result = await processImageGeneration(enhanced);
+        const result = await processImageGeneration(enhanced, { model: selectedImageModel });
         if (!result.success) throw new Error(result.error);
 
         setMessages((prev) => [
@@ -223,10 +224,14 @@ export const useMessageSender = ({
             prompt: result.processedPrompt,
             originalPrompt: promptText,
             timestamp: new Date().toISOString(),
-            modelUsed: 'pollinations:flux',
+            modelUsed: result.model,
+            // data URLs cannot survive a reload: flagged so storage can drop them
+            persistable: result.persistable,
           },
         ]);
         onActivity?.();
+
+        if (result.fallback) notify(t('fallbackUsed'), { type: 'warning' });
       } catch (error) {
         console.error('Image generation failed:', error);
         setMessages((prev) => [
@@ -243,7 +248,7 @@ export const useMessageSender = ({
         notify(t('errGeneratingImage'), { type: 'error' });
       }
     },
-    [notify, onActivity, setMessages, t]
+    [notify, onActivity, selectedImageModel, setMessages, t]
   );
 
   // ---- public API ---------------------------------------------------------

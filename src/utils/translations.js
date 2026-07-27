@@ -204,6 +204,10 @@ export const translations = {
     about: 'حول التطبيق',
     version: 'الإصدار',
     shortcutNewChat: 'محادثة جديدة: Ctrl+K',
+    textModels: 'نماذج نصية',
+    imageModels: 'نماذج صور',
+    imageProvidersTitle: 'مزوّدو توليد الصور',
+    imageExpired: 'هذه الصورة لم تُحفظ لأن المزوّد أرجعها كبيانات مباشرة. أعد التوليد لعرضها.',
   },
   
   en: {
@@ -409,6 +413,10 @@ export const translations = {
     about: 'About',
     version: 'Version',
     shortcutNewChat: 'New chat: Ctrl+K',
+    textModels: 'Text models',
+    imageModels: 'Image models',
+    imageProvidersTitle: 'Image providers',
+    imageExpired: 'This image was returned inline and is not stored. Regenerate it to view.',
   }
 };
 

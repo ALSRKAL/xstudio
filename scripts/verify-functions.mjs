@@ -2,6 +2,7 @@
 // Run: node scripts/verify-functions.mjs
 const chat = (await import('../netlify/functions/chat.mjs')).default;
 const models = (await import('../netlify/functions/models.mjs')).default;
+const image = (await import('../netlify/functions/image.mjs')).default;
 
 // Unique IP per call so the built-in per-IP throttle does not skew results.
 let ipCounter = 0;
@@ -29,11 +30,27 @@ const modelsRes = await models(
   })
 );
 const modelsBody = await modelsRes.json();
-console.log('providers', JSON.stringify(modelsBody.providers));
-console.log('models', modelsBody.models.map((m) => m.id).join(', '));
+console.log('providers', modelsBody.providers.map((p) => `${p.id}/${p.kind}`).join(', '));
+console.log('text models', modelsBody.models.length);
+console.log('image models', (modelsBody.imageModels || []).map((m) => m.id).join(', '));
 expect('models endpoint 200', modelsRes.status === 200);
-expect('at least one keyless model', modelsBody.models.length > 0, `${modelsBody.models.length}`);
+expect('text models discovered', modelsBody.models.length > 0, `${modelsBody.models.length}`);
+expect('image models discovered', (modelsBody.imageModels || []).length > 0);
 expect('no cache leak header', modelsRes.headers.get('cache-control')?.includes('no-store'));
+expect(
+  'hidden fallback provider is not listed',
+  !modelsBody.providers.some((p) => p.id === 'llm7')
+);
+
+// Every listed text model must carry the details the picker renders.
+const detailed = modelsBody.models.filter((m) => m.contextWindow > 0);
+expect(
+  'listed models expose a context window',
+  detailed.length === modelsBody.models.length,
+  `${detailed.length}/${modelsBody.models.length}`
+);
+
+const firstModel = modelsBody.models[0]?.id;
 
 line('guards');
 const guard = await chat(req({ method: 'GET' }));
@@ -54,7 +71,7 @@ expect('oversized conversation rejected', huge.status === 413, `got ${huge.statu
 line('non-streaming completion');
 const once = await chat(
   post({
-    model: 'llm7:gemini-3.1-flash-lite',
+    model: firstModel,
     stream: false,
     messages: [{ role: 'user', content: 'Reply with exactly: PONG' }],
     max_tokens: 20,
@@ -68,7 +85,7 @@ expect('completion has content', !!onceBody.content?.trim());
 line('streaming completion');
 const streamed = await chat(
   post({
-    model: 'llm7:gemini-3.1-flash-lite',
+    model: firstModel,
     stream: true,
     messages: [{ role: 'user', content: 'Count from 1 to 5, comma separated.' }],
     max_tokens: 60,
@@ -149,6 +166,38 @@ const legacy = await chat(
 const legacyBody = await legacy.json();
 console.log('content', JSON.stringify(legacyBody.content?.slice(0, 60)));
 expect('legacy shape supported', legacy.status === 200 && !!legacyBody.content?.trim());
+
+
+line('image generation');
+const imageRes = await image(
+  new Request('https://x.test/.netlify/functions/image', {
+    method: 'POST',
+    headers: { 'x-nf-client-connection-ip': nextIp() },
+    body: JSON.stringify({ prompt: 'a lighthouse at dusk, cinematic', width: 512, height: 512 }),
+  })
+);
+const imageBody = await imageRes.json();
+console.log('provider', imageBody.provider, '| model', imageBody.model);
+expect('image endpoint 200', imageRes.status === 200, `status ${imageRes.status}`);
+expect('image url returned', typeof imageBody.url === 'string' && imageBody.url.length > 10);
+
+if (imageBody.url?.startsWith('http')) {
+  const probe = await fetch(imageBody.url, { signal: AbortSignal.timeout(90000) });
+  expect(
+    'image url serves an image',
+    probe.ok && (probe.headers.get('content-type') || '').startsWith('image'),
+    `${probe.status} ${probe.headers.get('content-type')}`
+  );
+}
+
+const emptyImage = await image(
+  new Request('https://x.test/.netlify/functions/image', {
+    method: 'POST',
+    headers: { 'x-nf-client-connection-ip': nextIp() },
+    body: JSON.stringify({ prompt: '' }),
+  })
+);
+expect('empty image prompt rejected', emptyImage.status === 400);
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

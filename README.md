@@ -21,33 +21,55 @@ image generation. Keys stay on the server.
 - **Bilingual UI (ar/en)** with full RTL, light/dark themes, chat history with
   search, local storage compression, and per-device usage limits.
 
-## 🆓 Where to get free models
+## 🆓 Models
 
-You need **zero keys to start**. Adding one free key gives you much stronger and
-faster models. Nothing here requires a credit card.
+The primary provider is **OpenRouter**: one free key unlocks the whole free
+catalogue, and the list is discovered at runtime, so it is never stale.
 
-| Provider | Free tier | Get a key | Env variable |
-|---|---|---|---|
-| LLM7 | Built in, works with no key | <https://llm7.io> | `LLM7_API_KEY` (optional) |
-| Groq | Fastest inference, generous limits | <https://console.groq.com/keys> | `GROQ_API_KEY` |
-| Google Gemini | Generous AI Studio free tier | <https://aistudio.google.com/apikey> | `GEMINI_API_KEY` |
-| Cerebras | Very fast, free tier | <https://cloud.cerebras.ai> | `CEREBRAS_API_KEY` |
-| OpenRouter | Many `:free` models, one key | <https://openrouter.ai/keys> | `OPENROUTER_API_KEY` |
-| Mistral | Free experiment tier | <https://console.mistral.ai/api-keys> | `MISTRAL_API_KEY` |
-| GitHub Models | Free with a GitHub token | <https://github.com/settings/tokens> | `GITHUB_MODELS_TOKEN` |
-| NVIDIA NIM | Free developer credits | <https://build.nvidia.com> | `NVIDIA_API_KEY` |
-| Together AI | Selected free models | <https://api.together.xyz/settings/api-keys> | `TOGETHER_API_KEY` |
+Free text models available through it today (context window in tokens):
 
-Two ways to use a key:
+| Model | Vendor | Context |
+|---|---|---|
+| Nemotron 3 Ultra 550B A55B | NVIDIA | 1M |
+| Nemotron 3 Super 120B A12B | NVIDIA | 262K |
+| Ling 3.0 Flash | InclusionAI | 262K |
+| Laguna M.1 / S 2.1 / XS 2.1 | poolside | 262K |
+| Gemma 4 31B · 26B A4B (vision) | Google | 262K |
+| North Mini Code | Cohere | 256K |
+| Nemotron 3 Nano 30B A3B · Nano Omni (vision) | NVIDIA | 256K |
+| Free Models Router | OpenRouter | 200K |
+| gpt-oss-20b | OpenAI | 131K |
+| Nemotron Nano 12B V2 VL (vision) · Nano 9B V2 | NVIDIA | 128K |
 
-1. **Server (recommended for a public site).** Add the variable in
-   Netlify → Site settings → Environment variables, then redeploy. The key never
-   reaches the browser and every visitor benefits.
-2. **In-app (per visitor).** Settings → *Free model providers* → paste a key.
-   It is stored in that browser only and forwarded per request.
+Image models: **Pollinations** (keyless, always on), plus **FLUX.1 schnell** via
+Cloudflare Workers AI or Together AI when their keys are set.
 
-Newly enabled providers show up in the model picker automatically — no code
-change, no new deploy beyond the env var.
+A note on the numbers you see on OpenRouter's ranking page (2.3T, 416B, …):
+those are **weekly token volumes**, not model sizes. The table above lists the
+context window, which is what actually limits a conversation.
+
+Non-chat free models (music, moderation, embeddings, rerankers, image
+generators) are filtered out of the chat picker on purpose.
+
+### Adding a key
+
+1. **Server (recommended).** Netlify → Site settings → Environment variables →
+   add the variable, then redeploy. The key never reaches the browser.
+2. **In-app (per visitor).** Settings → *Free model providers* → paste a key. It
+   stays in that browser and is used only for that visitor's requests.
+
+Optional extra providers, each adding its own models to the picker: Groq,
+Google Gemini, Cerebras, Mistral, GitHub Models, NVIDIA NIM, Together AI.
+See [`.env.example`](./.env.example) for every variable and signup link.
+
+> **OpenRouter gotcha.** If every model answers
+> `404 No allowed providers are available for the selected model`, your account
+> has a provider allow-list. Open OpenRouter → Settings and clear it, otherwise
+> only that one provider's models can run.
+
+A keyless provider (LLM7) stays wired in as an emergency fallback. It is never
+listed in the picker; it answers only when the selected provider fails, and the
+UI says so when that happens.
 
 ## 🚀 Quick start
 

@@ -1,16 +1,28 @@
 // ============================================================================
 // X Studio - Model catalog
 // ----------------------------------------------------------------------------
-// Discovers the models the backend can serve, caches them locally so the
-// selector opens instantly, and revalidates in the background.
+// Discovers the text and image models the backend can serve, caches them
+// locally so the picker opens instantly, and revalidates in the background.
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchAvailableModels } from '../services/aiClient';
-import { FALLBACK_MODELS, PROVIDER_ORDER, DEFAULT_MODEL, normalizeModelId } from '../config/api';
+import {
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_MODEL,
+  FALLBACK_MODELS,
+  FALLBACK_IMAGE_MODELS,
+  IMAGE_PROVIDER_ORDER,
+  PROVIDER_ORDER,
+  buildImageModelMeta,
+  normalizeImageModelId,
+  normalizeModelId,
+} from '../config/api';
 
 const CACHE_KEY = 'x_studio_model_catalog';
 const CACHE_TTL_MS = 30 * 60 * 1000;
+
+const fallbackImageMeta = FALLBACK_IMAGE_MODELS.map(buildImageModelMeta);
 
 const readCache = () => {
   try {
@@ -18,22 +30,43 @@ const readCache = () => {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.models?.length || Date.now() - parsed.at > CACHE_TTL_MS) return null;
-    return parsed.models;
+    return { models: parsed.models, imageModels: parsed.imageModels || fallbackImageMeta };
   } catch {
     return null;
   }
 };
 
-const writeCache = (models) => {
+const writeCache = (models, imageModels) => {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), models }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), models, imageModels }));
   } catch {
     /* storage full - not critical */
   }
 };
 
+/** Group a flat model list by provider, in a stable display order */
+const groupByProvider = (models, order) => {
+  const byProvider = new Map();
+  models.forEach((model) => {
+    if (!byProvider.has(model.provider)) byProvider.set(model.provider, []);
+    byProvider.get(model.provider).push(model);
+  });
+
+  return order
+    .filter((id) => byProvider.has(id))
+    .map((id) => ({
+      provider: id,
+      label: byProvider.get(id)[0].providerLabel,
+      color: byProvider.get(id)[0].color,
+      keyless: byProvider.get(id)[0].keyless,
+      models: byProvider.get(id).slice().sort((a, b) => a.name.localeCompare(b.name)),
+    }));
+};
+
 export const useModelCatalog = () => {
-  const [models, setModels] = useState(() => readCache() || FALLBACK_MODELS);
+  const cached = readCache();
+  const [models, setModels] = useState(() => cached?.models || FALLBACK_MODELS);
+  const [imageModels, setImageModels] = useState(() => cached?.imageModels || fallbackImageMeta);
   const [loading, setLoading] = useState(false);
   const [live, setLive] = useState(false);
 
@@ -42,8 +75,9 @@ export const useModelCatalog = () => {
     try {
       const result = await fetchAvailableModels({ refresh });
       setModels(result.models);
+      setImageModels(result.imageModels?.length ? result.imageModels : fallbackImageMeta);
       setLive(!!result.live);
-      if (result.live) writeCache(result.models);
+      if (result.live) writeCache(result.models, result.imageModels);
       return result;
     } finally {
       setLoading(false);
@@ -54,25 +88,13 @@ export const useModelCatalog = () => {
     load();
   }, [load]);
 
-  /** Models grouped by provider, in a stable display order */
-  const grouped = useMemo(() => {
-    const byProvider = new Map();
-    models.forEach((model) => {
-      if (!byProvider.has(model.provider)) byProvider.set(model.provider, []);
-      byProvider.get(model.provider).push(model);
-    });
+  const grouped = useMemo(() => groupByProvider(models, PROVIDER_ORDER), [models]);
+  const imageGrouped = useMemo(
+    () => groupByProvider(imageModels, IMAGE_PROVIDER_ORDER),
+    [imageModels]
+  );
 
-    return PROVIDER_ORDER.filter((id) => byProvider.has(id)).map((id) => ({
-      provider: id,
-      label: byProvider.get(id)[0].providerLabel,
-      icon: byProvider.get(id)[0].icon,
-      color: byProvider.get(id)[0].color,
-      keyless: byProvider.get(id)[0].keyless,
-      models: byProvider.get(id).sort((a, b) => a.name.localeCompare(b.name)),
-    }));
-  }, [models]);
-
-  /** Resolve a stored id to a model that actually exists */
+  /** Resolve a stored text model id to one that actually exists */
   const resolveSelected = useCallback(
     (modelId) => {
       const normalized = normalizeModelId(modelId);
@@ -86,5 +108,28 @@ export const useModelCatalog = () => {
     [models]
   );
 
-  return { models, grouped, loading, live, reload: load, resolveSelected };
+  const resolveSelectedImage = useCallback(
+    (modelId) => {
+      const normalized = normalizeImageModelId(modelId);
+      return (
+        imageModels.find((m) => m.id === normalized) ||
+        imageModels.find((m) => m.id === DEFAULT_IMAGE_MODEL) ||
+        imageModels[0] ||
+        fallbackImageMeta[0]
+      );
+    },
+    [imageModels]
+  );
+
+  return {
+    models,
+    imageModels,
+    grouped,
+    imageGrouped,
+    loading,
+    live,
+    reload: load,
+    resolveSelected,
+    resolveSelectedImage,
+  };
 };

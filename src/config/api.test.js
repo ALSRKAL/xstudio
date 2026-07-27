@@ -1,7 +1,10 @@
 import {
   DEFAULT_MODEL,
+  EMERGENCY_MODEL,
+  FALLBACK_MODELS,
   buildModelMeta,
   getLimitsForModel,
+  getVendorLabel,
   isKeylessModel,
   normalizeModelId,
   prettifyModelName,
@@ -54,9 +57,9 @@ describe('display metadata', () => {
 });
 
 describe('usage limits', () => {
-  it('never limits keyless providers', () => {
-    expect(isKeylessModel(DEFAULT_MODEL)).toBe(true);
-    expect(getLimitsForModel(DEFAULT_MODEL)).toEqual({
+  it('never limits the keyless emergency provider', () => {
+    expect(isKeylessModel(EMERGENCY_MODEL)).toBe(true);
+    expect(getLimitsForModel(EMERGENCY_MODEL)).toEqual({
       dailyLimit: Infinity,
       totalLimit: Infinity,
     });
@@ -66,5 +69,47 @@ describe('usage limits', () => {
     const limits = getLimitsForModel('groq:llama-3.1-8b-instant');
     expect(Number.isFinite(limits.dailyLimit)).toBe(true);
     expect(limits.totalLimit).toBeGreaterThan(0);
+  });
+});
+
+describe('OpenRouter catalogue', () => {
+  it('defaults to a free OpenRouter model', () => {
+    expect(DEFAULT_MODEL.startsWith('openrouter:')).toBe(true);
+    expect(DEFAULT_MODEL.endsWith(':free')).toBe(true);
+  });
+
+  it('keeps the free suffix inside the model id', () => {
+    expect(splitModelId(DEFAULT_MODEL).model).toBe('nvidia/nemotron-3-ultra-550b-a55b:free');
+  });
+
+  it('labels the vendor behind each model', () => {
+    expect(getVendorLabel('nvidia/nemotron-3-ultra-550b-a55b:free')).toBe('NVIDIA');
+    expect(getVendorLabel('inclusionai/ling-3.0-flash:free')).toBe('InclusionAI');
+    expect(getVendorLabel('gemini-2.5-flash')).toBeNull();
+  });
+
+  it('ships an offline catalogue of free models only', () => {
+    expect(FALLBACK_MODELS.length).toBeGreaterThan(5);
+    FALLBACK_MODELS.forEach((model) => {
+      expect(model.provider).toBe('openrouter');
+      expect(model.contextWindow).toBeGreaterThan(0);
+    });
+  });
+
+  it('prefers provider-reported capabilities over id guesses', () => {
+    const meta = buildModelMeta('openrouter:cohere/north-mini-code:free', {
+      label: 'North Mini Code (free)',
+      description: 'A coding model.',
+      contextWindow: 256000,
+      vision: true,
+      reasoning: true,
+    });
+
+    expect(meta.name).toBe('North Mini Code (free)');
+    expect(meta.vendor).toBe('Cohere');
+    expect(meta.vision).toBe(true);
+    expect(meta.tags).toContain('reasoning');
+    expect(meta.tags).toContain('code');
+    expect(meta.description).toBe('A coding model.');
   });
 });

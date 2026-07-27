@@ -1,5 +1,18 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Eye, Code2, Brain, RefreshCw, Search, Sparkles, X, Zap } from 'lucide-react';
+import {
+  Brain,
+  Check,
+  Code2,
+  Eye,
+  Image as ImageIcon,
+  Layers,
+  MessageSquare,
+  RefreshCw,
+  Search,
+  Sparkles,
+  X,
+  Zap,
+} from 'lucide-react';
 import { useTranslation } from '../utils/translations';
 import { getLimitsForModel } from '../config/api';
 import { getProviderIcon } from '../config/icons';
@@ -16,11 +29,30 @@ const formatContext = (tokens) => {
 };
 
 const ModelSelector = memo(
-  ({ groups = [], selectedModel, onSelectModel, onClose, onRefresh, loading, live, language = 'ar' }) => {
+  ({
+    groups = [],
+    imageGroups = [],
+    selectedModel,
+    selectedImageModel,
+    onSelectModel,
+    onSelectImageModel,
+    onClose,
+    onRefresh,
+    loading,
+    live,
+    language = 'ar',
+    initialKind = 'text',
+  }) => {
     const { t } = useTranslation(language);
     const [query, setQuery] = useState('');
+    const [kind, setKind] = useState(initialKind);
     const searchRef = useRef(null);
     const panelRef = useRef(null);
+
+    const isImageKind = kind === 'image';
+    const activeGroups = isImageKind ? imageGroups : groups;
+    const activeSelection = isImageKind ? selectedImageModel : selectedModel;
+    const handleSelect = isImageKind ? onSelectImageModel : onSelectModel;
 
     useEffect(() => {
       const timer = setTimeout(() => searchRef.current?.focus(), 60);
@@ -29,9 +61,9 @@ const ModelSelector = memo(
 
     const filteredGroups = useMemo(() => {
       const needle = query.trim().toLowerCase();
-      if (!needle) return groups;
+      if (!needle) return activeGroups;
 
-      return groups
+      return activeGroups
         .map((group) => ({
           ...group,
           models: group.models.filter(
@@ -42,11 +74,12 @@ const ModelSelector = memo(
           ),
         }))
         .filter((group) => group.models.length > 0);
-    }, [groups, query]);
+    }, [activeGroups, query]);
 
     const totalCount = filteredGroups.reduce((sum, group) => sum + group.models.length, 0);
 
     const renderUsage = (model) => {
+      if (model.kind === 'image') return null;
       if (model.keyless) {
         return (
           <div className="unlimited-badge">
@@ -126,6 +159,29 @@ const ModelSelector = memo(
             </div>
           </div>
 
+          <div className="model-kind-tabs" role="tablist" aria-label={t('selectModelTitle')}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isImageKind}
+              className={`model-kind-tab ${!isImageKind ? 'active' : ''}`}
+              onClick={() => setKind('text')}
+            >
+              <MessageSquare size={14} aria-hidden="true" />
+              {t('textModels')}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isImageKind}
+              className={`model-kind-tab ${isImageKind ? 'active' : ''}`}
+              onClick={() => setKind('image')}
+            >
+              <ImageIcon size={14} aria-hidden="true" />
+              {t('imageModels')}
+            </button>
+          </div>
+
           <div className="model-search">
             <Search size={16} aria-hidden="true" />
             <input
@@ -166,7 +222,7 @@ const ModelSelector = memo(
 
                 <div className="models-grid">
                   {group.models.map((model) => {
-                    const isSelected = selectedModel === model.id;
+                    const isSelected = activeSelection === model.id;
                     const contextLabel = formatContext(model.contextWindow);
 
                     return (
@@ -174,12 +230,16 @@ const ModelSelector = memo(
                         type="button"
                         key={model.id}
                         className={`model-card ${isSelected ? 'selected' : ''}`}
-                        style={{ borderColor: isSelected ? model.color : undefined }}
-                        onClick={() => onSelectModel(model.id)}
+                        onClick={() => handleSelect(model.id)}
                         aria-pressed={isSelected}
                       >
                         <div className="model-card-top">
-                          <h5 className="model-name">{model.name}</h5>
+                          <span className="model-heading">
+                            <span className="model-name">{model.name}</span>
+                            {model.vendor && (
+                              <span className="model-vendor">{model.vendor}</span>
+                            )}
+                          </span>
                           {isSelected && (
                             <span className="selected-badge" aria-hidden="true">
                               <Check size={14} />
@@ -187,17 +247,25 @@ const ModelSelector = memo(
                           )}
                         </div>
 
+                        {model.description && (
+                          <p className="model-description" title={model.description}>
+                            {model.description}
+                          </p>
+                        )}
+
                         <code className="model-raw-id">{model.rawId}</code>
 
                         <div className="model-meta">
-                          <span className={`speed-badge speed-${model.speed}`}>
-                            <Zap size={11} />
-                            {t(SPEED_KEY[model.speed] || 'medium')}
-                          </span>
+                          {model.speed && (
+                            <span className={`speed-badge speed-${model.speed}`}>
+                              <Zap size={11} />
+                              {t(SPEED_KEY[model.speed] || 'medium')}
+                            </span>
+                          )}
                           {model.size && <span className="pill">{model.size}</span>}
                           {contextLabel && (
-                            <span className="pill" title={t('contextLabel')}>
-                              {contextLabel}
+                            <span className="pill" title={`${t('contextLabel')}: ${contextLabel} ${t('tokens')}`}>
+                              <Layers size={11} /> {contextLabel}
                             </span>
                           )}
                           {model.vision && (

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // The markdown/highlighter stack is ESM-only and irrelevant to this smoke test,
@@ -16,11 +16,25 @@ import App from './App';
 const modelsPayload = {
   success: true,
   updatedAt: new Date().toISOString(),
-  providers: [{ id: 'llm7', keyless: true, modelCount: 2 }],
-  models: [
-    { id: 'llm7:gemini-3.1-flash-lite', contextWindow: 128000 },
-    { id: 'groq:llama-3.1-8b-instant', contextWindow: 131072 },
+  providers: [
+    { id: 'openrouter', kind: 'text', keyless: false, modelCount: 2 },
+    { id: 'pollinations', kind: 'image', keyless: true, modelCount: 1 },
   ],
+  models: [
+    {
+      id: 'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free',
+      label: 'Nemotron 3 Ultra (free)',
+      description: 'A very large mixture-of-experts reasoning model.',
+      contextWindow: 1000000,
+      reasoning: true,
+    },
+    {
+      id: 'openrouter:openai/gpt-oss-20b:free',
+      label: 'gpt-oss-20b (free)',
+      contextWindow: 131072,
+    },
+  ],
+  imageModels: [{ id: 'pollinations:sana' }],
 };
 
 const sseBody = (text) => {
@@ -85,16 +99,40 @@ describe('X Studio app', () => {
     expect(await screen.findByRole('button', { name: /محادثة جديدة|new chat/i })).toBeInTheDocument();
   });
 
-  it('loads the discovered model list into the picker', async () => {
+  it('loads the discovered model list with details into the picker', async () => {
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /gemini|flash/i }));
+    await userEvent.click(screen.getByRole('button', { name: /nemotron/i }));
 
     await waitFor(() =>
       expect(screen.getByPlaceholderText(/ابحث عن نموذج|search models/i)).toBeInTheDocument()
     );
-    await waitFor(() => expect(screen.getByText('Groq')).toBeInTheDocument());
-    expect(screen.getByText(/Llama 3.1 8B Instant/i)).toBeInTheDocument();
+
+    // provider group, vendor, label and description all come from discovery
+    const dialog = screen.getByRole('dialog');
+    await waitFor(() =>
+      expect(within(dialog).getByRole('heading', { name: 'OpenRouter' })).toBeInTheDocument()
+    );
+    expect(within(dialog).getByText('Nemotron 3 Ultra (free)')).toBeInTheDocument();
+    expect(within(dialog).getByText('gpt-oss-20b (free)')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('NVIDIA').length).toBeGreaterThan(0);
+    expect(
+      within(dialog).getByText(/mixture-of-experts reasoning model/i)
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText('1M')).toBeInTheDocument();
+  });
+
+  it('offers image models in their own tab', async () => {
+    render(<App />);
+
+    await userEvent.click(screen.getByRole('button', { name: /nemotron/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('tab', { name: /نماذج صور|image models/i }));
+
+    await waitFor(() =>
+      expect(within(dialog).getByRole('heading', { name: 'Pollinations' })).toBeInTheDocument()
+    );
+    expect(within(dialog).getByText('Sana')).toBeInTheDocument();
   });
 
   it('streams an assistant reply into the transcript', async () => {

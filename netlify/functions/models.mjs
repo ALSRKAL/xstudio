@@ -8,6 +8,11 @@
 // ============================================================================
 
 import { PROVIDERS, getEnabledProviders, buildHeaders } from '../lib/providers.mjs';
+import {
+  IMAGE_PROVIDERS,
+  getEnabledImageProviders,
+  getImageKey,
+} from '../lib/imageProviders.mjs';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 // Cached per provider set, so BYOK users get their own entry.
@@ -37,10 +42,36 @@ const fetchProviderModels = async (providerId, origin, userKeys) => {
 
     return parsed
       .filter((m) => m.id && !(provider.excludeModels && provider.excludeModels.test(m.id)))
-      .map((m) => ({ ...m, id: `${providerId}:${m.id}` }));
+      .map((m) => ({ ...m, id: `${providerId}:${m.id}` }))
+      .sort((a, b) => (b.contextWindow || 0) - (a.contextWindow || 0));
   } catch {
     return [];
   }
+};
+
+/** Image providers either publish a model list or declare a static one */
+const fetchImageModels = async (providerId, userKeys) => {
+  const provider = IMAGE_PROVIDERS[providerId];
+
+  if (provider.modelsUrl) {
+    try {
+      const key = getImageKey(providerId, userKeys);
+      const response = await fetch(provider.modelsUrl, {
+        headers: key ? { Authorization: `Bearer ${key}` } : {},
+        signal: AbortSignal.timeout(12000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const parsed = provider.parseModels ? provider.parseModels(data) : [];
+        if (parsed.length) return parsed.map((id) => `${providerId}:${id}`);
+      }
+    } catch {
+      /* fall through to the static list */
+    }
+  }
+
+  const fallback = provider.staticModels || (provider.defaultModel ? [provider.defaultModel] : []);
+  return fallback.map((id) => `${providerId}:${id}`);
 };
 
 export default async (req) => {
@@ -60,7 +91,8 @@ export default async (req) => {
   }
 
   const origin = req.headers.get('origin');
-  const enabled = getEnabledProviders(userKeys);
+  // Hidden providers back the automatic fallback but are never listed.
+  const enabled = getEnabledProviders(userKeys).filter((id) => !PROVIDERS[id].hidden);
   const cacheKey = enabled.join(',');
   const cached = cache.get(cacheKey);
 
@@ -71,22 +103,42 @@ export default async (req) => {
     });
   }
 
-  const results = await Promise.all(
-    enabled.map(async (providerId) => ({
-      providerId,
-      models: await fetchProviderModels(providerId, origin, userKeys),
-    }))
-  );
+  const enabledImage = getEnabledImageProviders(userKeys);
+
+  const [results, imageResults] = await Promise.all([
+    Promise.all(
+      enabled.map(async (providerId) => ({
+        providerId,
+        models: await fetchProviderModels(providerId, origin, userKeys),
+      }))
+    ),
+    Promise.all(
+      enabledImage.map(async (providerId) => ({
+        providerId,
+        models: await fetchImageModels(providerId, userKeys),
+      }))
+    ),
+  ]);
 
   const payload = {
     success: true,
     updatedAt: new Date().toISOString(),
-    providers: results.map((r) => ({
-      id: r.providerId,
-      keyless: !!PROVIDERS[r.providerId].keyless,
-      modelCount: r.models.length,
-    })),
+    providers: [
+      ...results.map((r) => ({
+        id: r.providerId,
+        kind: 'text',
+        keyless: !!PROVIDERS[r.providerId].keyless,
+        modelCount: r.models.length,
+      })),
+      ...imageResults.map((r) => ({
+        id: r.providerId,
+        kind: 'image',
+        keyless: !!IMAGE_PROVIDERS[r.providerId].keyless,
+        modelCount: r.models.length,
+      })),
+    ],
     models: results.flatMap((r) => r.models),
+    imageModels: imageResults.flatMap((r) => r.models.map((id) => ({ id }))),
   };
 
   if (cache.size > 50) cache.clear();

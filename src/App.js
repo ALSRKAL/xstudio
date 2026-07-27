@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 
-import { APP_CONFIG, DEFAULT_MODEL, normalizeModelId } from './config/api';
+import {
+  APP_CONFIG,
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_MODEL,
+  normalizeImageModelId,
+  normalizeModelId,
+} from './config/api';
+import { getAssistantIcon } from './config/icons';
 import { useChatLogic } from './hooks/useChatLogic';
 import { useLanguageDetection } from './hooks/useLanguageDetection';
 import { useMessageSender } from './hooks/useMessageSender';
@@ -41,8 +48,15 @@ function App() {
   const { t } = useTranslation(settings.language);
   const { toasts, notify, dismiss } = useToast();
   const { detectLanguage } = useLanguageDetection();
-  const { grouped, loading: modelsLoading, live: modelsLive, reload: reloadModels, resolveSelected } =
-    useModelCatalog();
+  const {
+    grouped,
+    imageGrouped,
+    loading: modelsLoading,
+    live: modelsLive,
+    reload: reloadModels,
+    resolveSelected,
+    resolveSelectedImage,
+  } = useModelCatalog();
 
   const {
     messages,
@@ -60,6 +74,9 @@ function App() {
 
   const selectedModel = normalizeModelId(settings.model || DEFAULT_MODEL);
   const selectedModelInfo = resolveSelected(selectedModel);
+  const selectedImageModel = normalizeImageModelId(settings.imageModel || DEFAULT_IMAGE_MODEL);
+  const selectedImageModelInfo = resolveSelectedImage(selectedImageModel);
+  const activeModelInfo = mode === 'image' ? selectedImageModelInfo : selectedModelInfo;
 
   // ---- settings ----------------------------------------------------------
   const updateSettings = useCallback((patch) => {
@@ -142,6 +159,7 @@ function App() {
     setMessages,
     mode,
     selectedModel,
+    selectedImageModel,
     language: settings.language,
     t,
     notify,
@@ -241,12 +259,39 @@ function App() {
     [scrollToBottom]
   );
 
+  /**
+   * Image endpoints occasionally answer 500 under load. Retry once with a fresh
+   * seed before telling the user anything went wrong.
+   */
   const handleImageError = useCallback(
     (index) => {
+      let retrying = false;
+
+      setMessages((prev) =>
+        prev.map((message, i) => {
+          if (i !== index || message.type !== 'image') return message;
+          if (message.retriedAt || !String(message.content).startsWith('http')) return message;
+
+          try {
+            const url = new URL(message.content);
+            url.searchParams.set('seed', String(Date.now()));
+            retrying = true;
+            return { ...message, content: url.toString(), retriedAt: Date.now() };
+          } catch {
+            return message;
+          }
+        })
+      );
+
+      if (retrying) {
+        setImageLoading((prev) => ({ ...prev, [index]: true }));
+        return;
+      }
+
       setImageLoading((prev) => ({ ...prev, [index]: false }));
       notify(t('errImageLoad'), { type: 'error' });
     },
-    [notify, t]
+    [notify, setMessages, t]
   );
 
   const handleLoadChat = useCallback(
@@ -275,6 +320,18 @@ function App() {
     [notify, resolveSelected, t, updateSettings]
   );
 
+  const handleSelectImageModel = useCallback(
+    (modelId) => {
+      updateSettings({ imageModel: modelId });
+      setShowModelSelector(false);
+      notify(`${t('modelSwitched')}: ${resolveSelectedImage(modelId).name}`, {
+        type: 'success',
+        duration: 2500,
+      });
+    },
+    [notify, resolveSelectedImage, t, updateSettings]
+  );
+
   const handleClearAllChats = useCallback(() => {
     if (!clearAllChats()) {
       notify(t('errGeneric'), { type: 'error' });
@@ -294,6 +351,7 @@ function App() {
   }, [messages, visibleCount]);
 
   const hiddenCount = messages.length - visibleMessages.length;
+  const LoadingAvatarIcon = getAssistantIcon(activeModelInfo.provider);
 
   return (
     <div className="app" data-language={settings.language}>
@@ -310,8 +368,8 @@ function App() {
       <Sidebar
         sidebarOpen={sidebarOpen}
         onNewChat={handleNewChat}
-        selectedModel={selectedModel}
-        selectedModelInfo={selectedModelInfo}
+        selectedModel={activeModelInfo.id}
+        selectedModelInfo={activeModelInfo}
         onShowModelSelector={() => setShowModelSelector(true)}
         chatHistory={chatHistory}
         currentChatId={currentChatId}
@@ -369,7 +427,9 @@ function App() {
                 <div className="message assistant">
                   <div className="message-wrapper">
                     <div className="message-avatar">
-                      <div className="avatar-icon">{selectedModelInfo.icon}</div>
+                      <div className="avatar-icon">
+                        <LoadingAvatarIcon size={16} aria-hidden="true" />
+                      </div>
                     </div>
                     <div className="message-content-wrapper">
                       <div className="message-content loading-message">
@@ -405,20 +465,24 @@ function App() {
           onStop={stop}
           onModeChange={setMode}
           language={settings.language}
-          modelName={selectedModelInfo.name}
+          modelName={activeModelInfo.name}
         />
       </div>
 
       {showModelSelector && (
         <ModelSelector
           groups={grouped}
+          imageGroups={imageGrouped}
           loading={modelsLoading}
           live={modelsLive}
           onRefresh={() => reloadModels({ refresh: true })}
           selectedModel={selectedModel}
+          selectedImageModel={selectedImageModel}
           onSelectModel={handleSelectModel}
+          onSelectImageModel={handleSelectImageModel}
           onClose={() => setShowModelSelector(false)}
           language={settings.language}
+          initialKind={mode === 'image' ? 'image' : 'text'}
         />
       )}
 

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, Copy, Download, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, Check, Copy, Download, ImageOff, Loader2, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -47,7 +47,7 @@ const ChatMessage = memo(
     const isUser = message.role === 'user';
     const modelMeta = getModelInfo(message.modelUsed || selectedModel);
     const AvatarIcon = isUser ? USER_ICON : getAssistantIcon(modelMeta.provider);
-    const isImageResult = message.type === 'image' && !isUser;
+    const isImageResult = message.type === 'image' && !isUser && message.content !== undefined;
     const imageReady = imageLoading[index] === false;
     const direction = hasArabic(message.content) ? 'rtl' : 'ltr';
 
@@ -112,7 +112,27 @@ const ChatMessage = memo(
 
           <div className="message-content-wrapper">
             <div className={`message-content ${message.isError ? 'message-error' : ''}`}>
-              {isImageResult ? (
+              {isImageResult && message.expired ? (
+                <div className="image-expired">
+                  <ImageOff size={18} aria-hidden="true" />
+                  <div className="image-expired-body">
+                    <p>{t('imageExpired')}</p>
+                    {(message.originalPrompt || message.prompt) && (
+                      <span className="image-expired-prompt">
+                        {message.originalPrompt || message.prompt}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="image-action-button"
+                    onClick={() => onRegenerate(index)}
+                  >
+                    <RefreshCw size={15} />
+                    <span>{t('regenerate')}</span>
+                  </button>
+                </div>
+              ) : isImageResult ? (
                 <>
                   <div className="image-result">
                     {!imageReady && (

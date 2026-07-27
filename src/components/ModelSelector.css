@@ -249,10 +249,74 @@
   gap: 8px;
 }
 
+.model-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .model-name {
   font-size: 13.5px;
   font-weight: 550;
   line-height: 1.35;
+}
+
+.model-vendor {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.model-description {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- kind tabs ---- */
+.model-kind-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 12px 18px 0;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  width: fit-content;
+}
+
+.model-kind-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.model-kind-tab:hover {
+  color: var(--text-primary);
+}
+
+.model-kind-tab.active {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.model-kind-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .selected-badge {

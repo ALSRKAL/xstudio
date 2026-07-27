@@ -13,6 +13,9 @@ export const PROVIDERS = {
     modelsUrl: 'https://api.llm7.io/v1/models',
     envKey: 'LLM7_API_KEY', // optional: raises the rate limit
     keyless: true,
+    // Emergency net only: never offered in the picker, used automatically when
+    // the selected provider fails so a request is never left unanswered.
+    hidden: true,
     parseModels: (data) =>
       (data?.data || [])
         .filter((m) => m.id && m.tier !== 'pro' && (m.model_type || 'chat') === 'chat')
@@ -36,18 +39,29 @@ export const PROVIDERS = {
       'HTTP-Referer': origin || 'https://x-studio.netlify.app',
       'X-Title': 'X Studio',
     }),
-    // Only surface the genuinely free models.
+    // Free models that are not chat models: music, moderation, embeddings,
+    // reranking and image generators have no place in a chat picker.
+    excludeModels: /lyria|content-safety|guard|moderation|embed|rerank|whisper|tts|imagen|seedream|flux/i,
+
+    // Only surface the genuinely free models, with the details the UI shows.
     parseModels: (data) =>
       (data?.data || [])
         .filter((m) => {
-          const p = m?.pricing || {};
-          const isFree = Number(p.prompt) === 0 && Number(p.completion) === 0;
-          return isFree && typeof m.id === 'string';
+          if (typeof m?.id !== 'string') return false;
+          const pricing = m.pricing || {};
+          const isFree = Number(pricing.prompt) === 0 && Number(pricing.completion) === 0;
+          const outputs = m.architecture?.output_modalities || ['text'];
+          return isFree && outputs.includes('text');
         })
         .map((m) => ({
           id: m.id,
-          contextWindow: m.context_length || null,
+          label: m.name || null,
+          description: m.description ? m.description.slice(0, 600) : null,
+          contextWindow: m.context_length || m.top_provider?.context_length || null,
+          maxOutput: m.top_provider?.max_completion_tokens || null,
           vision: !!m.architecture?.input_modalities?.includes?.('image'),
+          reasoning: !!m.supported_parameters?.includes?.('reasoning'),
+          tools: !!m.supported_parameters?.includes?.('tools'),
         })),
   },
   gemini: {
