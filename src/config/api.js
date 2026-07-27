@@ -11,9 +11,9 @@ export const APP_CONFIG = {
   name: 'X Studio',
   shortName: 'X',
   version: '2.0.0',
-  contactUrl: 'https://alsrkal.netlify.app/',
+  contactUrl: 'https://www.alsrkal.com/',
 
-  // Backend endpoints (Netlify Functions). Keep in one place only.
+  // Backend function endpoints. Keep in one place only.
   endpoints: {
     chat: '/.netlify/functions/chat',
     models: '/.netlify/functions/models',
@@ -61,8 +61,8 @@ export const GENERATION_DEFAULTS = {
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
-// `envKey` is the environment variable the Netlify function reads.
-// `signupUrl` is surfaced in Settings so users know where to get a free key.
+// `envKey` is the environment variable the backend function reads.
+// `signupUrl` documents where administrators can create provider keys.
 // ---------------------------------------------------------------------------
 export const PROVIDERS = {
   llm7: {

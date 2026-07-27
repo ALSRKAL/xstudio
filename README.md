@@ -53,10 +53,8 @@ generators) are filtered out of the chat picker on purpose.
 
 ### Adding a key
 
-1. **Server (recommended).** Netlify → Site settings → Environment variables →
-   add the variable, then redeploy. The key never reaches the browser.
-2. **In-app (per visitor).** Settings → *Free model providers* → paste a key. It
-   stays in that browser and is used only for that visitor's requests.
+Configure keys as server-side environment variables in the deployment dashboard,
+then redeploy. Keys never reach the browser or appear in the Settings dialog.
 
 Optional extra providers, each adding its own models to the picker: Groq,
 Google Gemini, Cerebras, Mistral, GitHub Models, NVIDIA NIM, Together AI.
@@ -120,10 +118,9 @@ model list, picker grouping and fallback logic pick it up automatically.
 ## 🔒 Security notes
 
 - API keys live in server-side environment variables; the browser bundle has none.
+- Provider keys are not exposed or editable in the public Settings dialog.
 - The chat function validates method, JSON, roles, message count and payload size,
   and applies a per-IP rate limit.
-- Keys pasted in Settings stay in that browser's `localStorage` and are used only
-  for that visitor's own requests. For a shared deployment prefer env variables.
 - Security headers (`nosniff`, `SAMEORIGIN`, referrer policy, permissions policy)
   are set in `netlify.toml`.
 

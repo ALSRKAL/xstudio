@@ -78,7 +78,7 @@ Redeploy after adding variables. New providers appear in the model picker
 automatically — the list is discovered at runtime, not hardcoded.
 
 No variables at all is a valid setup: the app falls back to the keyless
-provider, and visitors can paste their own key in Settings.
+provider. Provider keys are managed only through server-side environment variables.
 
 ## 6. Post-deploy checks
 

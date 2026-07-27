@@ -36,7 +36,7 @@ export const PROVIDERS = {
     modelsUrl: 'https://openrouter.ai/api/v1/models',
     envKey: 'OPENROUTER_API_KEY',
     extraHeaders: (origin) => ({
-      'HTTP-Referer': origin || 'https://x-studio.netlify.app',
+      'HTTP-Referer': origin || 'https://www.alsrkal.com',
       'X-Title': 'X Studio',
     }),
     // Free models that are not chat models: music, moderation, embeddings,

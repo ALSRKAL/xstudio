@@ -45,13 +45,10 @@ npm run dev
 
 `.env` مستثنى من Git ولا يُرفع أبداً.
 
-## مفاتيح المستخدم (BYOK)
+## إدارة المفاتيح في النسخة المنشورة
 
-الإعدادات → «مزوّدو النماذج المجانية» تسمح لأي زائر بلصق مفتاحه الخاص:
-
-- يُحفظ في `localStorage` لمتصفحه فقط، ولا يُخزَّن على السيرفر ولا في السجلات.
-- يُستخدم لطلبات ذلك الزائر وحده.
-- للنشر العام يُفضّل متغيرات البيئة في Netlify.
+لا تعرض نافذة الإعدادات مفاتيح المزوّدين ولا تسمح بإدخالها. تُدار جميع المفاتيح
+كمتغيرات بيئة على الخادم فقط، ولا تصل إلى حزمة المتصفح.
 
 ## الحمايات المطبّقة في الكود
 
@@ -83,11 +80,9 @@ npm run dev
 - Rotate any key that was ever written into a repository file or shared in chat.
 - Sensitive files (`.env`, `api.txt`, `*.key`, `*.pem`, `secrets*`) are
   git-ignored. Verify with `git check-ignore -v <file>`.
-- Add keys in Netlify → Site settings → Environment variables, then redeploy.
-  Full list in [`.env.example`](./.env.example).
-- Visitors may paste their own key in Settings (BYOK). It stays in their browser
-  and is used only for their own requests; it is never stored or logged
-  server-side.
+- Add keys as server-side environment variables in the deployment dashboard, then
+  redeploy. Full list in [`.env.example`](./.env.example).
+- Provider keys are not displayed or editable in the public Settings dialog.
 - Backend protections: method/JSON validation, role and size sanitisation, a
   per-IP rate limit, request timeouts, no public caching of key-dependent
   responses, and security headers from `netlify.toml`.

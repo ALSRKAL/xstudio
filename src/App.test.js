@@ -135,6 +135,23 @@ describe('X Studio app', () => {
     expect(within(dialog).getByText('Sana')).toBeInTheDocument();
   });
 
+  it('keeps provider configuration and API keys out of Settings', async () => {
+    // This test only exercises local Settings UI; keep model discovery pending
+    // so unrelated async catalogue updates cannot outlive the assertion.
+    global.fetch.mockImplementationOnce(() => new Promise(() => {}));
+    render(<App />);
+
+    await userEvent.click(screen.getByRole('button', { name: /الإعدادات|settings/i }));
+
+    expect(
+      screen.getByRole('heading', { name: /الإعدادات|settings/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/مزوّدو النماذج المجانية|free model providers/i)
+    ).not.toBeInTheDocument();
+    expect(document.querySelector('input[type="password"]')).not.toBeInTheDocument();
+  });
+
   it('streams an assistant reply into the transcript', async () => {
     render(<App />);
 

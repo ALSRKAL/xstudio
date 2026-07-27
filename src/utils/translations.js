@@ -146,7 +146,7 @@ export const translations = {
     errOffline: 'لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى.',
     backOnline: 'تم استعادة الاتصال بالإنترنت',
     errRateLimited: 'طلبات كثيرة في وقت قصير. انتظر لحظة ثم أعد المحاولة.',
-    errNoProvider: 'لا يوجد مزوّد ذكاء اصطناعي مُهيّأ على السيرفر. أضف مفتاح API من الإعدادات.',
+    errNoProvider: 'لا يوجد مزوّد ذكاء اصطناعي مُهيّأ على الخادم. تواصل مع مسؤول الموقع.',
     errTimeout: 'استغرق النموذج وقتاً طويلاً. حاول مرة أخرى أو اختر نموذجاً أسرع.',
     errEmpty: 'لم يرجع النموذج أي إجابة. أعد المحاولة.',
     errGeneric: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
@@ -178,21 +178,6 @@ export const translations = {
     contextLabel: 'الذاكرة',
     tokens: 'رمز',
 
-    // ---- v2: providers / keys ----
-    providersTitle: 'مزوّدو النماذج المجانية',
-    providersHint:
-      'أضف أي مفتاح مجاني كمتغير بيئة في Netlify ثم أعد النشر، وستظهر نماذجه تلقائياً في قائمة النماذج.',
-    getFreeKey: 'احصل على مفتاح مجاني',
-    envVariable: 'متغير البيئة',
-    active: 'مُفعّل',
-    notConfigured: 'غير مُهيّأ',
-    pasteKey: 'الصق المفتاح هنا',
-    keySaved: 'محفوظ في هذا المتصفح',
-    save: 'حفظ',
-    removeKey: 'حذف المفتاح',
-    keyStorageWarning:
-      'المفتاح يُحفظ في متصفحك فقط ويُستخدم لطلباتك أنت. للنشر العام استخدم متغيرات البيئة في Netlify.',
-
     // ---- v2: misc UI ----
     openMenu: 'فتح القائمة',
     stopGenerating: 'إيقاف التوليد',
@@ -206,7 +191,6 @@ export const translations = {
     shortcutNewChat: 'محادثة جديدة: Ctrl+K',
     textModels: 'نماذج نصية',
     imageModels: 'نماذج صور',
-    imageProvidersTitle: 'مزوّدو توليد الصور',
     imageExpired: 'هذه الصورة لم تُحفظ لأن المزوّد أرجعها كبيانات مباشرة. أعد التوليد لعرضها.',
   },
   
@@ -355,7 +339,7 @@ export const translations = {
     errOffline: 'No internet connection. Check your network and try again.',
     backOnline: 'Back online',
     errRateLimited: 'Too many requests. Wait a moment and try again.',
-    errNoProvider: 'No AI provider is configured on the server. Add an API key from Settings.',
+    errNoProvider: 'No AI provider is configured on the server. Contact the site administrator.',
     errTimeout: 'The model took too long. Try again or pick a faster model.',
     errEmpty: 'The model returned nothing. Please try again.',
     errGeneric: 'Something went wrong. Please try again.',
@@ -387,21 +371,6 @@ export const translations = {
     contextLabel: 'Context',
     tokens: 'tokens',
 
-    // ---- v2: providers / keys ----
-    providersTitle: 'Free model providers',
-    providersHint:
-      'Add any free key as a Netlify environment variable and redeploy - its models appear in the picker automatically.',
-    getFreeKey: 'Get a free key',
-    envVariable: 'Env variable',
-    active: 'Active',
-    notConfigured: 'Not configured',
-    pasteKey: 'Paste your key here',
-    keySaved: 'Saved in this browser',
-    save: 'Save',
-    removeKey: 'Remove key',
-    keyStorageWarning:
-      'Keys are stored in your browser only and used for your own requests. For a public deployment use Netlify environment variables.',
-
     // ---- v2: misc UI ----
     openMenu: 'Open menu',
     stopGenerating: 'Stop generating',
@@ -415,7 +384,6 @@ export const translations = {
     shortcutNewChat: 'New chat: Ctrl+K',
     textModels: 'Text models',
     imageModels: 'Image models',
-    imageProvidersTitle: 'Image providers',
     imageExpired: 'This image was returned inline and is not stored. Regenerate it to view.',
   }
 };
