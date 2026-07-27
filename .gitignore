@@ -34,3 +34,9 @@ secrets*
 
 # stray npm artifacts
 xai@*
+
+# netlify dev artifacts
+deno.lock
+
+# Local Netlify folder
+.netlify
