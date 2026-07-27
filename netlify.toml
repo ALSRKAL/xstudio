@@ -1,0 +1,34 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Long model answers need more than the default 10s.
+[functions."chat"]
+  included_files = ["netlify/lib/**"]
+
+[functions."models"]
+  included_files = ["netlify/lib/**"]
+
+# SPA fallback. Function routes (/.netlify/functions/*) are matched first by
+# Netlify, so they are not affected by this rule.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

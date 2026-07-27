@@ -1,70 +1,110 @@
-# Getting Started with Create React App
+# X Studio - AI Chat & Image Generation 🚀
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A professional, provider-agnostic AI chat app: real token streaming, automatic
+model discovery across many free providers, Arabic/English RTL-aware UI, and
+image generation. Keys stay on the server.
 
-## Available Scripts
+## ✨ What it does
 
-In the project directory, you can run:
+- **Real streaming** — tokens render as the model produces them (SSE), with a
+  working stop button that actually aborts the request.
+- **Any provider, one protocol** — every provider is called through the
+  OpenAI-compatible chat API, so adding one is a few lines of config.
+- **Live model discovery** — the model list is fetched from the providers you
+  configured, so it never goes stale and no model id is hardcoded.
+- **Never dead on arrival** — a keyless provider is built in, so the app answers
+  before you configure anything.
+- **Automatic fallback** — transient errors retry, then fall back to the keyless
+  provider instead of failing.
+- **Image generation** — keyless (Pollinations/FLUX) with automatic Arabic →
+  English prompt translation and prompt enrichment.
+- **Bilingual UI (ar/en)** with full RTL, light/dark themes, chat history with
+  search, local storage compression, and per-device usage limits.
 
-### `npm start`
+## 🆓 Where to get free models
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+You need **zero keys to start**. Adding one free key gives you much stronger and
+faster models. Nothing here requires a credit card.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+| Provider | Free tier | Get a key | Env variable |
+|---|---|---|---|
+| LLM7 | Built in, works with no key | <https://llm7.io> | `LLM7_API_KEY` (optional) |
+| Groq | Fastest inference, generous limits | <https://console.groq.com/keys> | `GROQ_API_KEY` |
+| Google Gemini | Generous AI Studio free tier | <https://aistudio.google.com/apikey> | `GEMINI_API_KEY` |
+| Cerebras | Very fast, free tier | <https://cloud.cerebras.ai> | `CEREBRAS_API_KEY` |
+| OpenRouter | Many `:free` models, one key | <https://openrouter.ai/keys> | `OPENROUTER_API_KEY` |
+| Mistral | Free experiment tier | <https://console.mistral.ai/api-keys> | `MISTRAL_API_KEY` |
+| GitHub Models | Free with a GitHub token | <https://github.com/settings/tokens> | `GITHUB_MODELS_TOKEN` |
+| NVIDIA NIM | Free developer credits | <https://build.nvidia.com> | `NVIDIA_API_KEY` |
+| Together AI | Selected free models | <https://api.together.xyz/settings/api-keys> | `TOGETHER_API_KEY` |
 
-### `npm test`
+Two ways to use a key:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. **Server (recommended for a public site).** Add the variable in
+   Netlify → Site settings → Environment variables, then redeploy. The key never
+   reaches the browser and every visitor benefits.
+2. **In-app (per visitor).** Settings → *Free model providers* → paste a key.
+   It is stored in that browser only and forwarded per request.
 
-### `npm run build`
+Newly enabled providers show up in the model picker automatically — no code
+change, no new deploy beyond the env var.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 🚀 Quick start
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm install
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# Full stack (React + Netlify Functions) - required for server-side keys
+npm run dev
 
-### `npm run eject`
+# Frontend only. The app still works: it falls back to the keyless provider.
+npm start
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Then open the printed URL (usually <http://localhost:8888> for `npm run dev`).
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Verify before shipping
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+npm test                  # unit + app smoke tests
+npm run verify:functions  # hits the real backend functions end to end
+npm run build             # production build
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## 🧱 Architecture
 
-## Learn More
+```
+netlify/
+  lib/providers.mjs        Provider registry (URLs, keys, model parsing)
+  functions/chat.mjs       Streaming chat proxy: validation, throttle, retry, fallback
+  functions/models.mjs     Live model discovery + cache
+src/
+  config/api.js            Single source of truth: branding, endpoints, providers, limits
+  config/prompts.js        System prompts
+  services/aiClient.js     Streaming client: abort, retry, keyless fallback
+  services/sseParser.js    SSE token parser (unit tested)
+  hooks/useMessageSender.js  Send / regenerate / stop - one pipeline
+  hooks/useModelCatalog.js   Model discovery + local cache
+  hooks/useChatLogic.js      Chat persistence
+  hooks/useToast.js          Non-blocking notifications
+  components/               Sidebar, ChatMessage, ChatInput, ModelSelector, Settings, Toast
+  utils/                    storage, compression, usage tracking, clipboard, i18n
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+**Adding a provider:** add one entry to `netlify/lib/providers.mjs` and one to
+`PROVIDERS` in `src/config/api.js`, then set its env var. That is all — the
+model list, picker grouping and fallback logic pick it up automatically.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 🔒 Security notes
 
-### Code Splitting
+- API keys live in server-side environment variables; the browser bundle has none.
+- The chat function validates method, JSON, roles, message count and payload size,
+  and applies a per-IP rate limit.
+- Keys pasted in Settings stay in that browser's `localStorage` and are used only
+  for that visitor's own requests. For a shared deployment prefer env variables.
+- Security headers (`nosniff`, `SAMEORIGIN`, referrer policy, permissions policy)
+  are set in `netlify.toml`.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 📄 License
 
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+MIT

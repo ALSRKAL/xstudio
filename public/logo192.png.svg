@@ -1,0 +1,26 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with gradient -->
+  <rect width="192" height="192" rx="36" fill="url(#gradient)"/>
+  
+  <!-- X Letter - Larger and centered -->
+  <path d="M60 54L96 96L60 138" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M132 54L96 96L132 138" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Sparkle effects -->
+  <circle cx="144" cy="60" r="6" fill="white" opacity="0.8"/>
+  <circle cx="156" cy="48" r="4.5" fill="white" opacity="0.6"/>
+  <circle cx="48" cy="144" r="6" fill="white" opacity="0.8"/>
+  <circle cx="36" cy="156" r="4.5" fill="white" opacity="0.6"/>
+  
+  <!-- Additional sparkles -->
+  <circle cx="168" cy="72" r="3" fill="white" opacity="0.5"/>
+  <circle cx="24" cy="120" r="3" fill="white" opacity="0.5"/>
+  
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+  </defs>
+</svg>
