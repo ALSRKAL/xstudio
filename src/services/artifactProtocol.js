@@ -16,11 +16,11 @@ const MARKERS = Object.freeze({
 });
 
 const KNOWN_MARKERS = Object.values(MARKERS);
-const ENGLISH_ACTION = /\b(?:build|create|make|develop|design|generate|code|implement)\b/i;
-const ENGLISH_TARGET = /\b(?:web\s*site|website|web\s*page|landing\s*page|web\s*app|app(?:lication)?|ui|user\s*interface|dashboard)\b/i;
+const ENGLISH_ACTION = /\b(?:build|create|make|develop|design|generate|write|code|implement)\b/i;
+const ENGLISH_TARGET = /\b(?:web\s*site|website|web\s*page|landing\s*page|web\s*app|web\s*code|html|app(?:lication)?|ui|user\s*interface|dashboard)\b/i;
 const ENGLISH_WANT = /\b(?:i\s+(?:want|need|would\s+like)|can\s+you|please)\b/i;
-const ARABIC_ACTION = /(?:أنشئ|انشئ|أنشىء|اصنع|ابنِ?|بناء|صم[ّ]?م|طو[ّ]?ر|برمج|اعمل)/;
-const ARABIC_TARGET = /(?:موقع|صفحة\s*(?:ويب|هبوط)|تطبيق|واجهة\s*(?:مستخدم)?|لوحة\s*تحكم)/;
+const ARABIC_ACTION = /(?:أنشئ|انشئ|أنشىء|اصنع|ابنِ?|بناء|صم[ّ]?م|طو[ّ]?ر|برمج|اعمل|اكتب|ول[ّ]?د|توليد)/;
+const ARABIC_TARGET = /(?:موقع|صفحة\s*(?:ويب|هبوط)|تطبيق|واجهة\s*(?:مستخدم)?|لوحة\s*تحكم|كود\s*(?:ويب|موقع)|HTML)/i;
 const ARABIC_WANT = /(?:أريد|اريد|احتاج|أحتاج|ارغب|أرغب|ممكن|لو\s*سمحت)/;
 
 export const detectArtifactIntent = (input) => {

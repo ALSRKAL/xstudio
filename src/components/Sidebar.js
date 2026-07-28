@@ -1,6 +1,5 @@
 import { memo, useMemo, useState } from 'react';
 import {
-  ChevronsUpDown,
   Clock,
   Image as ImageIcon,
   MessageSquare,
@@ -10,16 +9,12 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { APP_CONFIG, getModelInfo } from '../config/api';
-import { getProviderIcon } from '../config/icons';
+import { APP_CONFIG } from '../config/api';
 import { useTranslation } from '../utils/translations';
 
 const Sidebar = memo(({
   sidebarOpen,
   onNewChat,
-  selectedModel,
-  selectedModelInfo,
-  onShowModelSelector,
   chatHistory,
   currentChatId,
   onLoadChat,
@@ -29,8 +24,6 @@ const Sidebar = memo(({
 }) => {
   const { t } = useTranslation(language);
   const [search, setSearch] = useState('');
-  const model = selectedModelInfo || getModelInfo(selectedModel);
-  const ModelIcon = getProviderIcon(model.provider);
 
   const filteredHistory = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -61,27 +54,6 @@ const Sidebar = memo(({
         <Plus size={20} />
         <span>{t('newChat')}</span>
       </button>
-
-      {/* Model Selector Button */}
-      <div className="model-selector-section">
-        <div className="current-model-display">
-          <span className="model-label">{t('currentModel')}</span>
-          <button
-            type="button"
-            className="change-model-button"
-            onClick={onShowModelSelector}
-          >
-            <span className="model-icon-small" style={{ color: model.color }}>
-              <ModelIcon size={16} aria-hidden="true" />
-            </span>
-            <span className="model-button-text">
-              <span className="model-name-small">{model.name}</span>
-              <span className="model-provider-hint">{model.providerLabel}</span>
-            </span>
-            <ChevronsUpDown size={14} className="model-button-chevron" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
 
       {/* Chat History */}
       <div className="model-selector-section">

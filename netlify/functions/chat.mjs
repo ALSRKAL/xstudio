@@ -144,6 +144,7 @@ export default async (req) => {
   }
 
   const requested = resolveModelId(body.model);
+  const allowFallback = body.allow_fallback !== false;
   const stream = body.stream !== false;
   const origin = req.headers.get('origin');
   // Bring-your-own-key: forwarded per request, never stored or logged.
@@ -154,13 +155,19 @@ export default async (req) => {
     max_tokens: body.max_tokens,
   };
 
-  // Attempt order: requested provider (twice, for transient errors), then the
-  // keyless provider so the user is never left without an answer.
+  // The public app requests strict routing: the chosen model either runs or
+  // returns a clear error. Legacy/API callers may still opt into fallback.
   const attempts = [];
   if (isProviderEnabled(requested.provider, userKeys)) {
-    attempts.push({ providerId: requested.provider, model: requested.model, retry: true });
+    attempts.push({ providerId: requested.provider, model: requested.model });
+  } else if (!allowFallback) {
+    return json(503, {
+      success: false,
+      error: 'The selected model provider is not configured on the server.',
+      code: 'MODEL_UNAVAILABLE',
+    });
   }
-  if (requested.provider !== DEFAULT_PROVIDER) {
+  if (allowFallback && requested.provider !== DEFAULT_PROVIDER) {
     attempts.push({ providerId: DEFAULT_PROVIDER, model: DEFAULT_MODEL, fallback: true });
   }
 
@@ -168,7 +175,7 @@ export default async (req) => {
     return json(503, {
       success: false,
       error: 'No AI provider is configured on the server.',
-      code: 'NO_PROVIDER',
+      code: allowFallback ? 'NO_PROVIDER' : 'MODEL_UNAVAILABLE',
     });
   }
 
@@ -240,7 +247,7 @@ export default async (req) => {
 
   return json(lastStatus >= 400 && lastStatus < 600 ? lastStatus : 502, {
     success: false,
-    error: lastError,
-    code: 'UPSTREAM_FAILED',
+    error: allowFallback ? lastError : `Selected model failed: ${lastError}`,
+    code: allowFallback ? 'UPSTREAM_FAILED' : 'MODEL_UNAVAILABLE',
   });
 };

@@ -58,8 +58,10 @@ export const APP_CONFIG = {
 
   network: {
     timeoutMs: 120000,
-    retries: 1,
-    retryDelayMs: 800,
+  },
+
+  streaming: {
+    renderIntervalMs: 50,
   },
 };
 
@@ -427,6 +429,14 @@ export const FALLBACK_MODELS = [
     vision: true,
   }),
   buildModelMeta('openrouter:nvidia/nemotron-nano-9b-v2:free', { contextWindow: 128000 }),
+];
+
+/** The only text model that can run when CRA is started without server functions. */
+export const DIRECT_FALLBACK_MODELS = [
+  buildModelMeta(EMERGENCY_MODEL, {
+    label: 'X Studio Free',
+    contextWindow: 128000,
+  }),
 ];
 
 // ---------------------------------------------------------------------------

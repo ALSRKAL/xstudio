@@ -371,6 +371,17 @@ button {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+.code-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.run-code-button {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.25);
+}
+
 .language-badge {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -408,6 +419,16 @@ button {
   font-size: 13.5px !important;
   line-height: 1.65 !important;
   font-family: var(--font-mono) !important;
+  overflow: auto;
+}
+
+.code-block pre code {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  color: #d6deeb;
+  white-space: pre;
+  tab-size: 2;
 }
 
 .code-block code {

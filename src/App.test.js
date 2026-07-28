@@ -6,10 +6,6 @@ import { parseArtifactResponse } from './services/artifactProtocol';
 // so it is stubbed with a plain text renderer.
 jest.mock('react-markdown', () => ({ children }) => <span>{children}</span>);
 jest.mock('remark-gfm', () => () => undefined);
-jest.mock('react-syntax-highlighter', () => ({
-  Prism: ({ children }) => <pre>{children}</pre>,
-}));
-jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({ vscDarkPlus: {} }));
 
 // eslint-disable-next-line import/first
 import App from './App';
@@ -120,7 +116,7 @@ describe('X Studio app', () => {
   it('loads the discovered model list with details into the picker', async () => {
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /nemotron/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /nemotron/i }));
 
     await waitFor(() =>
       expect(screen.getByPlaceholderText(/ابحث عن نموذج|search models/i)).toBeInTheDocument()
@@ -143,7 +139,7 @@ describe('X Studio app', () => {
   it('offers image models in their own tab', async () => {
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /nemotron/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /nemotron/i }));
     const dialog = screen.getByRole('dialog');
     await userEvent.click(within(dialog).getByRole('tab', { name: /نماذج صور|image models/i }));
 

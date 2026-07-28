@@ -12,11 +12,12 @@
 import {
   APP_CONFIG,
   GENERATION_DEFAULTS,
-  FALLBACK_MODELS,
   buildImageModelMeta,
   buildModelMeta,
   normalizeModelId,
   DEFAULT_MODEL,
+  DIRECT_FALLBACK_MODELS,
+  EMERGENCY_MODEL,
   shouldUseBackendFunctions,
 } from '../config/api';
 import { getApiKeys } from '../utils/apiKeys';
@@ -36,14 +37,13 @@ const ERROR_CODES = {
   OFFLINE: 'OFFLINE',
   RATE_LIMITED: 'RATE_LIMITED',
   NO_PROVIDER: 'NO_PROVIDER',
+  MODEL_UNAVAILABLE: 'MODEL_UNAVAILABLE',
   TIMEOUT: 'TIMEOUT',
   UPSTREAM: 'UPSTREAM',
   EMPTY: 'EMPTY',
 };
 
 export { ERROR_CODES };
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isAbort = (error) => error?.name === 'AbortError' || error?.code === ERROR_CODES.ABORTED;
 
@@ -83,16 +83,20 @@ const prepareMessages = (messages, systemPrompt) => {
 const mapHttpError = async (response) => {
   let message = `Request failed (${response.status})`;
   let code = ERROR_CODES.UPSTREAM;
+  let hasExplicitCode = false;
   try {
     const data = await response.json();
     if (data?.error) message = data.error;
-    if (data?.code) code = data.code;
+    if (data?.code) {
+      code = data.code;
+      hasExplicitCode = true;
+    }
   } catch {
     /* keep default message */
   }
-  if (response.status === 429) code = ERROR_CODES.RATE_LIMITED;
-  if (response.status === 503) code = ERROR_CODES.NO_PROVIDER;
-  if (response.status === 504) code = ERROR_CODES.TIMEOUT;
+  if (!hasExplicitCode && response.status === 429) code = ERROR_CODES.RATE_LIMITED;
+  if (!hasExplicitCode && response.status === 503) code = ERROR_CODES.NO_PROVIDER;
+  if (!hasExplicitCode && response.status === 504) code = ERROR_CODES.TIMEOUT;
   return new AiError(code, message, response.status);
 };
 
@@ -120,7 +124,8 @@ const streamDirectFallback = async ({ messages, onToken, signal }) => {
     content,
     provider: APP_CONFIG.fallback.provider,
     model: APP_CONFIG.fallback.model,
-    fallback: true,
+    modelId: EMERGENCY_MODEL,
+    fallback: false,
   };
 };
 
@@ -150,69 +155,73 @@ export const streamChat = async ({
     temperature: temperature ?? GENERATION_DEFAULTS.temperature,
     top_p: GENERATION_DEFAULTS.top_p,
     max_tokens: maxTokens ?? GENERATION_DEFAULTS.max_tokens,
+    allow_fallback: false,
     keys: getApiKeys(),
   };
 
-  const { retries, retryDelayMs } = APP_CONFIG.network;
-  let lastError;
-
   if (!shouldUseBackendFunctions()) {
+    if (payload.model !== EMERGENCY_MODEL) {
+      throw new AiError(
+        ERROR_CODES.MODEL_UNAVAILABLE,
+        'The selected model requires the full-stack server.'
+      );
+    }
     return streamDirectFallback({ messages: payload.messages, onToken, signal });
   }
 
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      const response = await fetch(APP_CONFIG.endpoints.chat, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal,
-      });
+  try {
+    const response = await fetch(APP_CONFIG.endpoints.chat, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal,
+    });
 
-      // Backend function not deployed (plain CRA dev server) -> keyless path
-      if (response.status === 404 || response.status === 405) {
+    if (response.status === 404 || response.status === 405) {
+      if (payload.model === EMERGENCY_MODEL) {
         return streamDirectFallback({ messages: payload.messages, onToken, signal });
       }
+      throw new AiError(
+        ERROR_CODES.MODEL_UNAVAILABLE,
+        'The selected model requires an available backend function.',
+        response.status
+      );
+    }
 
-      if (!response.ok || !response.body) throw await mapHttpError(response);
+    if (!response.ok || !response.body) throw await mapHttpError(response);
 
-      const content = await readStream(response, onToken);
-      if (!content.trim()) throw new AiError(ERROR_CODES.EMPTY, 'Empty response from model');
+    const content = await readStream(response, onToken);
+    if (!content.trim()) throw new AiError(ERROR_CODES.EMPTY, 'Empty response from model');
 
-      return {
-        content,
-        provider: response.headers.get('x-ai-provider') || 'unknown',
-        model: response.headers.get('x-ai-model') || payload.model,
-        fallback: response.headers.get('x-ai-fallback') === '1',
-      };
-    } catch (error) {
-      if (isAbort(error)) throw new AiError(ERROR_CODES.ABORTED, 'Generation stopped');
-      lastError = error;
+    const provider = response.headers.get('x-ai-provider') || 'unknown';
+    const actualModel = response.headers.get('x-ai-model') || payload.model;
+    return {
+      content,
+      provider,
+      model: actualModel,
+      modelId: actualModel.startsWith(`${provider}:`) ? actualModel : `${provider}:${actualModel}`,
+      fallback: response.headers.get('x-ai-fallback') === '1',
+    };
+  } catch (error) {
+    if (isAbort(error)) throw new AiError(ERROR_CODES.ABORTED, 'Generation stopped');
 
-      const retryable =
-        !(error instanceof AiError) || // network/parse failure
-        [ERROR_CODES.TIMEOUT, ERROR_CODES.EMPTY].includes(error.code);
-
-      if (attempt < retries && retryable) {
-        await sleep(retryDelayMs);
-        continue;
+    // A network failure reaching the proxy may still call the exact same
+    // keyless model directly. This never substitutes a different model.
+    if (payload.model === EMERGENCY_MODEL && !(error instanceof AiError)) {
+      try {
+        return await streamDirectFallback({ messages: payload.messages, onToken, signal });
+      } catch (directError) {
+        if (isAbort(directError)) throw new AiError(ERROR_CODES.ABORTED, 'Generation stopped');
+        throw directError instanceof AiError
+          ? directError
+          : new AiError(ERROR_CODES.UPSTREAM, directError?.message || 'Generation failed');
       }
-      break;
     }
-  }
 
-  // Last resort: keyless provider so the user still gets an answer.
-  if (!isAbort(lastError)) {
-    try {
-      return await streamDirectFallback({ messages: payload.messages, onToken, signal });
-    } catch (fallbackError) {
-      if (isAbort(fallbackError)) throw new AiError(ERROR_CODES.ABORTED, 'Generation stopped');
-    }
+    throw error instanceof AiError
+      ? error
+      : new AiError(ERROR_CODES.UPSTREAM, error?.message || 'Generation failed');
   }
-
-  throw lastError instanceof AiError
-    ? lastError
-    : new AiError(ERROR_CODES.UPSTREAM, lastError?.message || 'Generation failed');
 };
 
 /** Single-shot completion (no streaming) - used for translation & utilities */
@@ -260,7 +269,7 @@ export const completeChat = async ({ model, messages, systemPrompt, temperature,
  */
 export const fetchAvailableModels = async ({ refresh = false } = {}) => {
   if (!shouldUseBackendFunctions()) {
-    return { models: FALLBACK_MODELS, imageModels: [], live: false };
+    return { models: DIRECT_FALLBACK_MODELS, imageModels: [], live: false };
   }
 
   try {
@@ -273,7 +282,7 @@ export const fetchAvailableModels = async ({ refresh = false } = {}) => {
     if (!response.ok) throw new Error(`models ${response.status}`);
 
     const data = await response.json();
-    const models = (data?.models || []).map((m) =>
+    const discoveredModels = (data?.models || []).map((m) =>
       buildModelMeta(m.id, {
         label: m.label || null,
         description: m.description || null,
@@ -286,11 +295,16 @@ export const fetchAvailableModels = async ({ refresh = false } = {}) => {
       })
     );
     const imageModels = (data?.imageModels || []).map((m) => buildImageModelMeta(m.id));
+    const models = discoveredModels.some((model) => model.id === EMERGENCY_MODEL)
+      ? discoveredModels
+      : [...discoveredModels, ...DIRECT_FALLBACK_MODELS];
 
-    if (!models.length) return { models: FALLBACK_MODELS, imageModels, live: false };
+    if (!discoveredModels.length) {
+      return { models: DIRECT_FALLBACK_MODELS, imageModels, live: false };
+    }
     return { models, imageModels, live: true, updatedAt: data.updatedAt };
   } catch {
-    return { models: FALLBACK_MODELS, imageModels: [], live: false };
+    return { models: DIRECT_FALLBACK_MODELS, imageModels: [], live: false };
   }
 };
 

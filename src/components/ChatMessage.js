@@ -1,8 +1,6 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, Copy, Download, ImageOff, Loader2, RefreshCw } from 'lucide-react';
+import { memo, useCallback } from 'react';
+import { AlertCircle, Check, Copy, Download, ImageOff, Loader2, Play, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
 import { getModelInfo } from '../config/api';
 import { getAssistantIcon, USER_ICON, WORKSPACE_ICONS } from '../config/icons';
@@ -22,29 +20,13 @@ const ChatMessage = memo(
     onImageLoad,
     onImageError,
     onOpenArtifact,
+    onRunCode,
     detectLanguage,
     selectedModel,
     language = 'ar',
   }) => {
     const { t } = useTranslation(language);
     const WorkspaceIcon = WORKSPACE_ICONS.workspace;
-    const [isVisible, setIsVisible] = useState(message.type === 'image');
-    const messageRef = useRef(null);
-
-    useEffect(() => {
-      const node = messageRef.current;
-      if (!node || isVisible) return undefined;
-
-      const observer = new IntersectionObserver(
-        (entries) => {
-          if (entries.some((entry) => entry.isIntersecting)) setIsVisible(true);
-        },
-        { rootMargin: '200px', threshold: 0.01 }
-      );
-
-      observer.observe(node);
-      return () => observer.disconnect();
-    }, [isVisible]);
 
     const isUser = message.role === 'user';
     const modelMeta = getModelInfo(message.modelUsed || selectedModel);
@@ -59,52 +41,64 @@ const ChatMessage = memo(
     );
 
     const renderCode = useCallback(
-      ({ inline, className, children, ...props }) => {
-        const match = /language-(\w+)/.exec(className || '');
+      ({ className, children }) => {
+        const match = /language-([\w-]+)/.exec(className || '');
         const codeString = String(children).replace(/\n$/, '');
+        const isBlock = Boolean(match) || codeString.includes('\n');
 
-        if (inline) {
+        if (!isBlock) {
           return (
-            <code className="inline-code" {...props}>
+            <code className="inline-code">
               {children}
             </code>
           );
         }
 
-        const codeLanguage = match ? match[1] : detectLanguage(codeString);
+        const codeLanguage = match ? match[1].toLowerCase() : detectLanguage(codeString);
+        const canRun = ['html', 'htm'].includes(codeLanguage) && typeof onRunCode === 'function';
 
         return (
           <div className="code-block">
             <div className="code-header">
               <span className="language-badge">{codeLanguage}</span>
-              <button
-                type="button"
-                className="copy-button"
-                onClick={() => handleCopyCode(codeString)}
-                aria-label={t('copyCode')}
-              >
-                {copiedIndex === `${index}-code` ? (
-                  <>
-                    <Check size={14} /> {t('copied')}
-                  </>
-                ) : (
-                  <>
-                    <Copy size={14} /> {t('copy')}
-                  </>
+              <div className="code-header-actions">
+                {canRun && (
+                  <button
+                    type="button"
+                    className="copy-button run-code-button"
+                    onClick={() => onRunCode(message.content)}
+                    aria-label={t('runCode')}
+                  >
+                    <Play size={13} fill="currentColor" /> {t('runCode')}
+                  </button>
                 )}
-              </button>
+                <button
+                  type="button"
+                  className="copy-button"
+                  onClick={() => handleCopyCode(codeString)}
+                  aria-label={t('copyCode')}
+                >
+                  {copiedIndex === `${index}-code` ? (
+                    <>
+                      <Check size={14} /> {t('copied')}
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} /> {t('copy')}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-            <SyntaxHighlighter style={vscDarkPlus} language={codeLanguage} PreTag="div">
-              {codeString}
-            </SyntaxHighlighter>
+            <pre><code className={`language-${codeLanguage}`}>{codeString}</code></pre>
           </div>
         );
       },
-      [copiedIndex, detectLanguage, handleCopyCode, index, t]
+      [copiedIndex, detectLanguage, handleCopyCode, index, message.content, onRunCode, t]
     );
 
     return (
-      <div className={`message ${message.role}`} ref={messageRef}>
+      <div className={`message ${message.role}`}>
         <div className="message-wrapper">
           <div className="message-avatar">
             <div className="avatar-icon" title={isUser ? t('you') : modelMeta.name}>
@@ -161,7 +155,7 @@ const ChatMessage = memo(
                     )}
                   </div>
 
-                  {imageReady && isVisible && (
+                  {imageReady && (
                     <div className="image-actions">
                       <button
                         type="button"
@@ -204,26 +198,27 @@ const ChatMessage = memo(
               ) : (
                 <div className="markdown-content" dir={direction}>
                   {message.isError && <AlertCircle size={16} className="error-icon" />}
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      p: ({ children, node }) => {
-                        const hasCodeBlock = node?.children?.some(
-                          (child) => child.tagName === 'code' && child.properties?.className
-                        );
-                        return hasCodeBlock ? <>{children}</> : <p>{children}</p>;
-                      },
-                      a: ({ children, ...props }) => (
-                        <a {...props} target="_blank" rel="noopener noreferrer">
-                          {children}
-                        </a>
-                      ),
-                      code: renderCode,
-                    }}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
-                  {message.streaming && <span className="streaming-cursor" aria-hidden="true" />}
+                  {message.streaming ? (
+                    <div className="streaming-plain-text">
+                      {message.content}
+                      <span className="streaming-cursor" aria-hidden="true" />
+                    </div>
+                  ) : (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        pre: ({ children }) => <>{children}</>,
+                        a: ({ children, ...props }) => (
+                          <a {...props} target="_blank" rel="noopener noreferrer">
+                            {children}
+                          </a>
+                        ),
+                        code: renderCode,
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  )}
                 </div>
               )}
 

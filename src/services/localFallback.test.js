@@ -1,6 +1,6 @@
 import { fetchAvailableModels } from './aiClient';
 import { processImageGeneration } from '../utils/imageGenerator';
-import { FALLBACK_MODELS } from '../config/api';
+import { DIRECT_FALLBACK_MODELS } from '../config/api';
 
 const originalOverride = process.env.REACT_APP_USE_BACKEND_FUNCTIONS;
 
@@ -18,7 +18,7 @@ describe('frontend-only local fallbacks', () => {
 
   it('uses the offline model catalogue without requesting a missing function', async () => {
     const result = await fetchAvailableModels();
-    expect(result).toEqual({ models: FALLBACK_MODELS, imageModels: [], live: false });
+    expect(result).toEqual({ models: DIRECT_FALLBACK_MODELS, imageModels: [], live: false });
     expect(global.fetch).not.toHaveBeenCalled();
   });
 

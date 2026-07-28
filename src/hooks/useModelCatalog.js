@@ -10,13 +10,14 @@ import { fetchAvailableModels } from '../services/aiClient';
 import {
   DEFAULT_IMAGE_MODEL,
   DEFAULT_MODEL,
-  FALLBACK_MODELS,
+  DIRECT_FALLBACK_MODELS,
   FALLBACK_IMAGE_MODELS,
   IMAGE_PROVIDER_ORDER,
   PROVIDER_ORDER,
   buildImageModelMeta,
   normalizeImageModelId,
   normalizeModelId,
+  shouldUseBackendFunctions,
 } from '../config/api';
 
 const CACHE_KEY = 'x_studio_model_catalog';
@@ -64,9 +65,17 @@ const groupByProvider = (models, order) => {
 };
 
 export const useModelCatalog = () => {
-  const cached = readCache();
-  const [models, setModels] = useState(() => cached?.models || FALLBACK_MODELS);
-  const [imageModels, setImageModels] = useState(() => cached?.imageModels || fallbackImageMeta);
+  const [catalog, setCatalog] = useState(() => {
+    if (!shouldUseBackendFunctions()) {
+      return { models: DIRECT_FALLBACK_MODELS, imageModels: fallbackImageMeta };
+    }
+    const cached = readCache();
+    return {
+      models: cached?.models || DIRECT_FALLBACK_MODELS,
+      imageModels: cached?.imageModels || fallbackImageMeta,
+    };
+  });
+  const { models, imageModels } = catalog;
   const [loading, setLoading] = useState(false);
   const [live, setLive] = useState(false);
 
@@ -74,8 +83,8 @@ export const useModelCatalog = () => {
     setLoading(true);
     try {
       const result = await fetchAvailableModels({ refresh });
-      setModels(result.models);
-      setImageModels(result.imageModels?.length ? result.imageModels : fallbackImageMeta);
+      const nextImageModels = result.imageModels?.length ? result.imageModels : fallbackImageMeta;
+      setCatalog({ models: result.models, imageModels: nextImageModels });
       setLive(!!result.live);
       if (result.live) writeCache(result.models, result.imageModels);
       return result;
@@ -102,7 +111,7 @@ export const useModelCatalog = () => {
         models.find((m) => m.id === normalized) ||
         models.find((m) => m.id === DEFAULT_MODEL) ||
         models[0] ||
-        FALLBACK_MODELS[0]
+        DIRECT_FALLBACK_MODELS[0]
       );
     },
     [models]

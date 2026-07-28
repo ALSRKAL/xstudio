@@ -1,5 +1,7 @@
 // Translation system for X Studio
 
+import { useCallback } from 'react';
+
 export const translations = {
   ar: {
     // Sidebar
@@ -147,6 +149,7 @@ export const translations = {
     backOnline: 'تم استعادة الاتصال بالإنترنت',
     errRateLimited: 'طلبات كثيرة في وقت قصير. انتظر لحظة ثم أعد المحاولة.',
     errNoProvider: 'لا يوجد مزوّد ذكاء اصطناعي مُهيّأ على الخادم. تواصل مع مسؤول الموقع.',
+    errModelUnavailable: 'تعذر تشغيل النموذج المحدد. تأكد من تهيئة مفتاح المزوّد أو استخدم التشغيل الكامل على المنفذ 8888.',
     errTimeout: 'استغرق النموذج وقتاً طويلاً. حاول مرة أخرى أو اختر نموذجاً أسرع.',
     errEmpty: 'لم يرجع النموذج أي إجابة. أعد المحاولة.',
     errGeneric: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
@@ -186,6 +189,8 @@ export const translations = {
     editMessage: 'تعديل',
     copyMessage: 'نسخ الرسالة',
     copyCode: 'نسخ الكود',
+    runCode: 'تشغيل المعاينة',
+    selectModelFromComposer: 'اختيار النموذج',
     about: 'حول التطبيق',
     version: 'الإصدار',
     shortcutNewChat: 'محادثة جديدة: Ctrl+K',
@@ -362,6 +367,7 @@ export const translations = {
     backOnline: 'Back online',
     errRateLimited: 'Too many requests. Wait a moment and try again.',
     errNoProvider: 'No AI provider is configured on the server. Contact the site administrator.',
+    errModelUnavailable: 'The selected model could not run. Configure its provider key or use the full-stack server on port 8888.',
     errTimeout: 'The model took too long. Try again or pick a faster model.',
     errEmpty: 'The model returned nothing. Please try again.',
     errGeneric: 'Something went wrong. Please try again.',
@@ -401,6 +407,8 @@ export const translations = {
     editMessage: 'Edit',
     copyMessage: 'Copy message',
     copyCode: 'Copy code',
+    runCode: 'Run preview',
+    selectModelFromComposer: 'Choose model',
     about: 'About',
     version: 'Version',
     shortcutNewChat: 'New chat: Ctrl+K',
@@ -433,9 +441,10 @@ export const translations = {
 };
 
 export const useTranslation = (language = 'ar') => {
-  const t = (key) => {
-    return translations[language]?.[key] || translations['ar'][key] || key;
-  };
-  
+  const t = useCallback(
+    (key) => translations[language]?.[key] || translations.ar[key] || key,
+    [language]
+  );
+
   return { t };
 };

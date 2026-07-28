@@ -76,6 +76,11 @@
   overflow-wrap: break-word;
 }
 
+.streaming-plain-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* the user's own turn reads as an input echo, visually distinct but quiet */
 .message.user .message-content {
   padding: 9px 13px;

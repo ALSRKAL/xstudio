@@ -9,6 +9,7 @@ import {
   normalizeModelId,
 } from './config/api';
 import { getAssistantIcon } from './config/icons';
+import { parseFencedArtifactResponse } from './services/artifactProtocol';
 import { useChatLogic } from './hooks/useChatLogic';
 import { useLanguageDetection } from './hooks/useLanguageDetection';
 import { useArtifactWorkspace } from './hooks/useArtifactWorkspace';
@@ -96,10 +97,12 @@ function App() {
     t,
   });
 
-  const selectedModel = normalizeModelId(settings.model || DEFAULT_MODEL);
-  const selectedModelInfo = resolveSelected(selectedModel);
-  const selectedImageModel = normalizeImageModelId(settings.imageModel || DEFAULT_IMAGE_MODEL);
-  const selectedImageModelInfo = resolveSelectedImage(selectedImageModel);
+  const storedModel = normalizeModelId(settings.model || DEFAULT_MODEL);
+  const selectedModelInfo = resolveSelected(storedModel);
+  const selectedModel = selectedModelInfo.id;
+  const storedImageModel = normalizeImageModelId(settings.imageModel || DEFAULT_IMAGE_MODEL);
+  const selectedImageModelInfo = resolveSelectedImage(storedImageModel);
+  const selectedImageModel = selectedImageModelInfo.id;
   const activeModelInfo = mode === 'image' ? selectedImageModelInfo : selectedModelInfo;
 
   // ---- settings ----------------------------------------------------------
@@ -142,7 +145,7 @@ function App() {
   }, [messages.length]);
 
   useEffect(() => {
-    scrollToBottom('smooth');
+    scrollToBottom('auto');
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
@@ -176,7 +179,7 @@ function App() {
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
-  const handleActivity = useCallback(() => scrollToBottom('smooth'), [scrollToBottom]);
+  const handleActivity = useCallback(() => scrollToBottom('auto'), [scrollToBottom]);
 
   const { loading, isStreaming, send, regenerate, stop } = useMessageSender({
     messages,
@@ -204,6 +207,14 @@ function App() {
     scrollToBottom('smooth', true);
     focusInput();
   }, [focusInput, loading, prompt, scrollToBottom, send]);
+
+  const handlePromptChange = useCallback((event) => {
+    setPrompt(event.target.value);
+  }, []);
+
+  const handleShowModelSelector = useCallback(() => {
+    setShowModelSelector(true);
+  }, []);
 
   const handleKeyDown = useCallback(
     (event) => {
@@ -254,6 +265,21 @@ function App() {
       setTimeout(() => setCopiedIndex(null), 2000);
     },
     [notify, t]
+  );
+
+  const handleRunCode = useCallback(
+    async (messageContent) => {
+      const parsed = parseFencedArtifactResponse(messageContent, APP_CONFIG.artifacts);
+      if (parsed?.status !== 'complete' || !parsed.project) {
+        notify(t('artifactInvalid'), { type: 'warning' });
+        return;
+      }
+      await acceptGeneratedProject(parsed.project, {
+        chatId: currentChatId,
+        prompt: t('runCode'),
+      });
+    },
+    [acceptGeneratedProject, currentChatId, notify, t]
   );
 
   const downloadImage = useCallback(
@@ -401,9 +427,6 @@ function App() {
       <Sidebar
         sidebarOpen={sidebarOpen}
         onNewChat={handleNewChat}
-        selectedModel={activeModelInfo.id}
-        selectedModelInfo={activeModelInfo}
-        onShowModelSelector={() => setShowModelSelector(true)}
         chatHistory={chatHistory}
         currentChatId={currentChatId}
         onLoadChat={handleLoadChat}
@@ -452,6 +475,7 @@ function App() {
                   onImageLoad={handleImageLoad}
                   onImageError={handleImageError}
                   onOpenArtifact={openArtifact}
+                  onRunCode={handleRunCode}
                   detectLanguage={detectLanguage}
                   selectedModel={selectedModel}
                   language={settings.language}
@@ -494,13 +518,14 @@ function App() {
           isStreaming={isStreaming}
           textareaRef={textareaRef}
           inputRef={inputRef}
-          onPromptChange={(event) => setPrompt(event.target.value)}
+          onPromptChange={handlePromptChange}
           onKeyDown={handleKeyDown}
           onGenerate={handleGenerate}
           onStop={stop}
           onModeChange={setMode}
+          onShowModelSelector={handleShowModelSelector}
           language={settings.language}
-          modelName={activeModelInfo.name}
+          modelInfo={activeModelInfo}
         />
         </div>
 

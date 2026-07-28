@@ -35,6 +35,7 @@ const ERROR_KEYS = {
   [ERROR_CODES.OFFLINE]: 'errOffline',
   [ERROR_CODES.RATE_LIMITED]: 'errRateLimited',
   [ERROR_CODES.NO_PROVIDER]: 'errNoProvider',
+  [ERROR_CODES.MODEL_UNAVAILABLE]: 'errModelUnavailable',
   [ERROR_CODES.TIMEOUT]: 'errTimeout',
   [ERROR_CODES.EMPTY]: 'errEmpty',
 };
@@ -63,32 +64,45 @@ export const useMessageSender = ({
   const frameRef = useRef(null);
   const pendingRef = useRef(null);
 
-  // ---- streaming render throttle (one DOM update per animation frame) ----
+  // ---- streaming render throttle -----------------------------------------
+  // Updating Markdown at 60fps makes long answers noticeably sluggish. Batch
+  // deltas to a short interval and replace the last message without scanning
+  // the whole transcript in the common case.
   const flushPending = useCallback(
     (messageId) => {
       frameRef.current = null;
       const content = pendingRef.current;
       if (content === null) return;
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, content } : m))
-      );
-      onActivity?.();
+      setMessages((prev) => {
+        const lastIndex = prev.length - 1;
+        if (lastIndex >= 0 && prev[lastIndex].id === messageId) {
+          const next = prev.slice();
+          next[lastIndex] = { ...next[lastIndex], content };
+          return next;
+        }
+        return prev.map((message) =>
+          message.id === messageId ? { ...message, content } : message
+        );
+      });
     },
-    [setMessages, onActivity]
+    [setMessages]
   );
 
   const scheduleUpdate = useCallback(
     (messageId, content) => {
       pendingRef.current = content;
       if (frameRef.current !== null) return;
-      frameRef.current = requestAnimationFrame(() => flushPending(messageId));
+      frameRef.current = setTimeout(
+        () => flushPending(messageId),
+        APP_CONFIG.streaming.renderIntervalMs
+      );
     },
     [flushPending]
   );
 
   const cancelPending = useCallback(() => {
     if (frameRef.current !== null) {
-      cancelAnimationFrame(frameRef.current);
+      clearTimeout(frameRef.current);
       frameRef.current = null;
     }
     pendingRef.current = null;
@@ -197,7 +211,8 @@ export const useMessageSender = ({
                   artifactTitle: savedArtifact?.title,
                   artifactVersion: savedArtifact?.version,
                   provider: result.provider,
-                  modelUsed: result.fallback ? `${result.provider}:${result.model}` : selectedModel,
+                  modelUsed: result.modelId || selectedModel,
+                  modelFallback: !!result.fallback,
                 }
               : m
           )
