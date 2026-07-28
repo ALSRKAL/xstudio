@@ -1,16 +1,13 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Brain,
   Check,
   Code2,
   Eye,
   Image as ImageIcon,
-  Layers,
   MessageSquare,
   RefreshCw,
   Search,
-  Sparkles,
-  X,
   Zap,
 } from 'lucide-react';
 import { useTranslation } from '../utils/translations';
@@ -26,6 +23,29 @@ const formatContext = (tokens) => {
   if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(tokens % 1000000 ? 1 : 0)}M`;
   if (tokens >= 1000) return `${Math.round(tokens / 1000)}K`;
   return String(tokens);
+};
+
+/**
+ * Usage is advisory, never blocking: a missing/corrupt tracker entry must not
+ * take the whole picker down.
+ */
+const readUsage = (model) => {
+  if (model.kind === 'image' || model.keyless) return null;
+
+  const { dailyLimit, totalLimit } = getLimitsForModel(model.id);
+  if (!Number.isFinite(totalLimit)) return null;
+
+  try {
+    const stats = getModelUsageStats(model.id, dailyLimit, totalLimit);
+    return {
+      remaining: stats.totalRemaining,
+      total: totalLimit,
+      percent: Math.min(100, Math.max(0, (stats.totalUsage / totalLimit) * 100)),
+      exhausted: stats.totalRemaining <= 0,
+    };
+  } catch {
+    return null;
+  }
 };
 
 const ModelSelector = memo(
@@ -46,7 +66,9 @@ const ModelSelector = memo(
     const { t } = useTranslation(language);
     const [query, setQuery] = useState('');
     const [kind, setKind] = useState(initialKind);
+    const [activeIndex, setActiveIndex] = useState(-1);
     const searchRef = useRef(null);
+    const listRef = useRef(null);
     const panelRef = useRef(null);
 
     const isImageKind = kind === 'image';
@@ -54,10 +76,25 @@ const ModelSelector = memo(
     const activeSelection = isImageKind ? selectedImageModel : selectedModel;
     const handleSelect = isImageKind ? onSelectImageModel : onSelectModel;
 
+    // Follow the composer: switching to image mode should land on image models.
     useEffect(() => {
-      const timer = setTimeout(() => searchRef.current?.focus(), 60);
+      setKind(initialKind);
+    }, [initialKind]);
+
+    useEffect(() => {
+      const timer = setTimeout(() => searchRef.current?.focus(), 50);
       return () => clearTimeout(timer);
     }, []);
+
+    useEffect(() => {
+      const handlePointerDown = (event) => {
+        const anchor = panelRef.current?.parentElement;
+        if (anchor && !anchor.contains(event.target)) onClose();
+      };
+
+      document.addEventListener('pointerdown', handlePointerDown);
+      return () => document.removeEventListener('pointerdown', handlePointerDown);
+    }, [onClose]);
 
     const filteredGroups = useMemo(() => {
       const needle = query.trim().toLowerCase();
@@ -76,95 +113,90 @@ const ModelSelector = memo(
         .filter((group) => group.models.length > 0);
     }, [activeGroups, query]);
 
-    const totalCount = filteredGroups.reduce((sum, group) => sum + group.models.length, 0);
+    // Flat order drives keyboard navigation; grouping is purely visual.
+    const options = useMemo(
+      () => filteredGroups.flatMap((group) => group.models),
+      [filteredGroups]
+    );
+    const totalCount = options.length;
 
-    const renderUsage = (model) => {
-      if (model.kind === 'image') return null;
-      if (model.keyless) {
-        return (
-          <div className="unlimited-badge">
-            <Zap size={13} />
-            <span>{t('unlimited')}</span>
-          </div>
-        );
-      }
+    // Land on the current model so Enter is a no-op instead of a surprise.
+    useEffect(() => {
+      const index = options.findIndex((model) => model.id === activeSelection);
+      setActiveIndex(index);
+    }, [options, activeSelection]);
 
-      const { dailyLimit, totalLimit } = getLimitsForModel(model.id);
-      if (totalLimit === Infinity) return null;
+    useEffect(() => {
+      if (activeIndex < 0) return;
+      const node = listRef.current?.querySelector('[data-active="true"]');
+      node?.scrollIntoView({ block: 'nearest' });
+    }, [activeIndex]);
 
-      let stats;
-      try {
-        stats = getModelUsageStats(model.id, dailyLimit, totalLimit);
-      } catch {
-        return null;
-      }
+    const move = useCallback(
+      (delta) => {
+        if (!options.length) return;
+        setActiveIndex((prev) => {
+          const next = prev + delta;
+          if (next < 0) return options.length - 1;
+          if (next >= options.length) return 0;
+          return next;
+        });
+      },
+      [options.length]
+    );
 
-      const percent = Math.min(100, (stats.totalUsage / totalLimit) * 100);
+    const handleKeyDown = useCallback(
+      (event) => {
+        switch (event.key) {
+          case 'ArrowDown':
+            event.preventDefault();
+            move(1);
+            break;
+          case 'ArrowUp':
+            event.preventDefault();
+            move(-1);
+            break;
+          case 'Home':
+            event.preventDefault();
+            setActiveIndex(0);
+            break;
+          case 'End':
+            event.preventDefault();
+            setActiveIndex(options.length - 1);
+            break;
+          case 'Enter': {
+            event.preventDefault();
+            const model = options[activeIndex];
+            if (model) handleSelect?.(model.id);
+            break;
+          }
+          case 'Tab':
+            onClose();
+            break;
+          default:
+            break;
+        }
+      },
+      [activeIndex, handleSelect, move, onClose, options]
+    );
 
-      return (
-        <div className="usage-bar-container">
-          <div className="usage-text">
-            <span>
-              {stats.totalRemaining} {t('remaining')}
-            </span>
-            <span className="usage-total">/ {totalLimit}</span>
-          </div>
-          <div className="usage-bar">
-            <div
-              className="usage-bar-fill"
-              style={{ width: `${percent}%`, backgroundColor: model.color }}
-            />
-          </div>
-        </div>
-      );
-    };
+    const activeOptionId = activeIndex >= 0 && options[activeIndex]
+      ? `model-option-${options[activeIndex].id}`
+      : undefined;
 
     return (
       <div
-        className="model-selector-overlay"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('selectModelTitle')}
-        onClick={(event) => {
-          if (!panelRef.current?.contains(event.target)) onClose();
-        }}
+        id="model-selector-popover"
+        className="model-menu"
+        data-composer-popover
       >
-        <div className="model-selector-panel" ref={panelRef}>
-          <div className="model-selector-header">
-            <div className="model-selector-title">
-              <h3>{t('selectModelTitle')}</h3>
-              <span className={`catalog-status ${live ? 'live' : 'offline'}`}>
-                {loading ? t('loadingModels') : live ? t('liveModels') : t('offlineModels')}
-              </span>
-            </div>
-            <div className="model-selector-header-actions">
-              <button
-                type="button"
-                className="icon-button"
-                onClick={onRefresh}
-                title={t('refreshModels')}
-                aria-label={t('refreshModels')}
-                disabled={loading}
-              >
-                <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={onClose}
-                aria-label={t('close')}
-              >
-                <X size={20} />
-              </button>
-            </div>
-          </div>
-
-          <div className="model-kind-tabs" role="tablist" aria-label={t('selectModelTitle')}>
+        <div className="model-menu-panel" ref={panelRef} onKeyDown={handleKeyDown}>
+          <div className="model-menu-kinds" role="tablist" aria-label={t('selectModelTitle')}>
             <button
               type="button"
               role="tab"
               aria-selected={!isImageKind}
-              className={`model-kind-tab ${!isImageKind ? 'active' : ''}`}
+              className={`model-menu-kind ${!isImageKind ? 'active' : ''}`}
               onClick={() => setKind('text')}
             >
               <MessageSquare size={14} aria-hidden="true" />
@@ -174,7 +206,7 @@ const ModelSelector = memo(
               type="button"
               role="tab"
               aria-selected={isImageKind}
-              className={`model-kind-tab ${isImageKind ? 'active' : ''}`}
+              className={`model-menu-kind ${isImageKind ? 'active' : ''}`}
               onClick={() => setKind('image')}
             >
               <ImageIcon size={14} aria-hidden="true" />
@@ -182,117 +214,153 @@ const ModelSelector = memo(
             </button>
           </div>
 
-          <div className="model-search">
-            <Search size={16} aria-hidden="true" />
+          <div className="model-menu-search">
+            <Search size={15} aria-hidden="true" />
             <input
               ref={searchRef}
-              type="search"
+              type="text"
+              role="combobox"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('searchModels')}
               aria-label={t('searchModels')}
+              aria-expanded="true"
+              aria-controls="model-menu-list"
+              aria-autocomplete="list"
+              aria-activedescendant={activeOptionId}
+              autoComplete="off"
             />
-            <span className="model-search-count">
-              {totalCount} {t('modelCount')}
-            </span>
+            {totalCount > 0 && (
+              <span className="model-menu-count">
+                {totalCount} {t('modelCount')}
+              </span>
+            )}
           </div>
 
-          <div className="model-groups">
-            {totalCount === 0 && !loading && (
-              <p className="no-models">{t('noModelsFound')}</p>
+          <div className="model-menu-list" id="model-menu-list" role="listbox" ref={listRef}>
+            {totalCount === 0 && (
+              <p className="model-menu-empty">
+                {loading ? t('loadingModels') : t('noModelsFound')}
+              </p>
             )}
 
             {filteredGroups.map((group) => {
               const GroupIcon = getProviderIcon(group.provider);
 
               return (
-              <section key={group.provider} className="model-group">
-                <header className="model-group-header">
-                  <span className="model-group-icon" style={{ color: group.color }}>
-                    <GroupIcon size={15} aria-hidden="true" />
-                  </span>
-                  <h4>{group.label}</h4>
-                  {group.keyless && (
-                    <span className="pill pill-free">
-                      <Sparkles size={11} /> {t('noKeyNeeded')}
-                    </span>
-                  )}
-                  <span className="model-group-count">{group.models.length}</span>
-                </header>
+                <div key={group.provider} className="model-menu-group" role="group" aria-label={group.label}>
+                  <div className="model-menu-group-label">
+                    <GroupIcon size={12} aria-hidden="true" style={{ color: group.color }} />
+                    <span>{group.label}</span>
+                    {group.keyless && <span className="model-menu-free">{t('noKeyNeeded')}</span>}
+                  </div>
 
-                <div className="models-grid">
                   {group.models.map((model) => {
                     const isSelected = activeSelection === model.id;
+                    const flatIndex = options.indexOf(model);
+                    const isActive = flatIndex === activeIndex;
                     const contextLabel = formatContext(model.contextWindow);
+                    const usage = readUsage(model);
 
                     return (
                       <button
                         type="button"
                         key={model.id}
-                        className={`model-card ${isSelected ? 'selected' : ''}`}
-                        onClick={() => handleSelect(model.id)}
-                        aria-pressed={isSelected}
+                        id={`model-option-${model.id}`}
+                        role="option"
+                        aria-selected={isSelected}
+                        data-active={isActive || undefined}
+                        className={`model-option ${isSelected ? 'selected' : ''} ${isActive ? 'active' : ''}`}
+                        onClick={() => handleSelect?.(model.id)}
+                        onMouseMove={() => setActiveIndex(flatIndex)}
+                        tabIndex={-1}
                       >
-                        <div className="model-card-top">
-                          <span className="model-heading">
-                            <span className="model-name">{model.name}</span>
-                            {model.vendor && (
-                              <span className="model-vendor">{model.vendor}</span>
+                        <span className="model-option-check" aria-hidden="true">
+                          {isSelected && <Check size={15} />}
+                        </span>
+
+                        <span className="model-option-body">
+                          <span className="model-option-title">
+                            <span className="model-option-name">{model.name}</span>
+                            {model.speed && (
+                              <span className={`model-flag speed-${model.speed}`}>
+                                <Zap size={10} aria-hidden="true" />
+                                {t(SPEED_KEY[model.speed] || 'medium')}
+                              </span>
+                            )}
+                            {model.vision && (
+                              <span className="model-flag" title={t('visionBadge')}>
+                                <Eye size={10} aria-hidden="true" />
+                                {t('visionBadge')}
+                              </span>
+                            )}
+                            {model.tags?.includes('reasoning') && (
+                              <span className="model-flag" title={t('reasoningBadge')}>
+                                <Brain size={10} aria-hidden="true" />
+                                {t('reasoningBadge')}
+                              </span>
+                            )}
+                            {model.tags?.includes('code') && (
+                              <span className="model-flag" title={t('codeBadge')}>
+                                <Code2 size={10} aria-hidden="true" />
+                                {t('codeBadge')}
+                              </span>
                             )}
                           </span>
-                          {isSelected && (
-                            <span className="selected-badge" aria-hidden="true">
-                              <Check size={14} />
+
+                          <span className="model-option-meta">
+                            {model.vendor && (
+                              <span className="model-option-vendor">{model.vendor}</span>
+                            )}
+                            <span className="model-option-desc">
+                              {model.description || model.rawId}
                             </span>
-                          )}
-                        </div>
+                          </span>
+                        </span>
 
-                        {model.description && (
-                          <p className="model-description" title={model.description}>
-                            {model.description}
-                          </p>
-                        )}
-
-                        <code className="model-raw-id">{model.rawId}</code>
-
-                        <div className="model-meta">
-                          {model.speed && (
-                            <span className={`speed-badge speed-${model.speed}`}>
-                              <Zap size={11} />
-                              {t(SPEED_KEY[model.speed] || 'medium')}
-                            </span>
-                          )}
-                          {model.size && <span className="pill">{model.size}</span>}
+                        <span className="model-option-side">
                           {contextLabel && (
-                            <span className="pill" title={`${t('contextLabel')}: ${contextLabel} ${t('tokens')}`}>
-                              <Layers size={11} /> {contextLabel}
+                            <span className="model-option-context" title={`${t('contextLabel')}: ${contextLabel} ${t('tokens')}`}>
+                              {contextLabel}
                             </span>
                           )}
-                          {model.vision && (
-                            <span className="pill pill-vision">
-                              <Eye size={11} /> {t('visionBadge')}
+                          {usage ? (
+                            <span className={`model-option-usage ${usage.exhausted ? 'exhausted' : ''}`}>
+                              <span className="model-option-usage-text">
+                                {usage.remaining}/{usage.total}
+                              </span>
+                              <span className="model-option-usage-bar">
+                                <span style={{ width: `${usage.percent}%` }} />
+                              </span>
                             </span>
+                          ) : (
+                            model.keyless && (
+                              <span className="model-option-context free">{t('unlimited')}</span>
+                            )
                           )}
-                          {model.tags?.includes('code') && (
-                            <span className="pill pill-code">
-                              <Code2 size={11} /> {t('codeBadge')}
-                            </span>
-                          )}
-                          {model.tags?.includes('reasoning') && (
-                            <span className="pill pill-reasoning">
-                              <Brain size={11} /> {t('reasoningBadge')}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="usage-info">{renderUsage(model)}</div>
+                        </span>
                       </button>
                     );
                   })}
                 </div>
-              </section>
               );
             })}
+          </div>
+
+          <div className="model-menu-footer">
+            <span className={`model-menu-status ${live ? 'live' : 'offline'}`}>
+              {loading ? t('loadingModels') : live ? t('liveModels') : t('offlineModels')}
+            </span>
+            <button
+              type="button"
+              className="model-menu-refresh"
+              onClick={onRefresh}
+              disabled={loading}
+              title={t('refreshModels')}
+            >
+              <RefreshCw size={13} className={loading ? 'spinning' : ''} aria-hidden="true" />
+              <span>{t('refreshModels')}</span>
+            </button>
           </div>
         </div>
       </div>

@@ -80,7 +80,12 @@ describe('OpenRouter catalogue', () => {
   });
 
   it('keeps the free suffix inside the model id', () => {
-    expect(splitModelId(DEFAULT_MODEL).model).toBe('nvidia/nemotron-3-ultra-550b-a55b:free');
+    expect(splitModelId(DEFAULT_MODEL).model).toBe('nvidia/nemotron-3-super-120b-a12b:free');
+    expect(splitModelId(DEFAULT_MODEL).provider).toBe('openrouter');
+  });
+
+  it('ships the default in the offline catalogue', () => {
+    expect(FALLBACK_MODELS.some((model) => model.id === DEFAULT_MODEL)).toBe(true);
   });
 
   it('labels the vendor behind each model', () => {

@@ -45,16 +45,34 @@ const removePrunedChat = (chatId) => {
  */
 const stripInlineImages = (messages) =>
   messages.map((message) => {
+    if (message.type !== 'image' || typeof message.content !== 'string') return message;
+
+    // A placeholder interrupted by a reload would restore as an endless skeleton.
+    if (message.pending) return { ...message, content: '', pending: false, expired: true };
+
     const isInline =
-      message.type === 'image' &&
-      typeof message.content === 'string' &&
-      (message.persistable === false || message.content.startsWith('data:'));
+      message.persistable === false || message.content.startsWith('data:');
 
     if (!isInline) return message;
     return { ...message, content: '', expired: true };
   });
 
-export const saveChat = (chatId, messages, mode) => {
+export const inferChatKind = (messages = [], fallback = 'text') => {
+  const userTypes = new Set(
+    messages
+      .filter((message) => message.role === 'user')
+      .map((message) => message.type)
+      .filter((type) => type === 'text' || type === 'image')
+  );
+
+  if (userTypes.has('text') && userTypes.has('image')) return 'mixed';
+  if (userTypes.has('image')) return 'image';
+  if (userTypes.has('text')) return 'text';
+  return fallback === 'image' ? 'image' : 'text';
+};
+
+export const saveChat = (chatId, messages, mode = 'text') => {
+  const chatKind = inferChatKind(messages, mode);
   try {
     // Check storage health before saving
     const storageHealth = checkStorageHealth();
@@ -76,9 +94,9 @@ export const saveChat = (chatId, messages, mode) => {
     const chatData = {
       id: chatId,
       messages: compressed,
-      mode,
+      mode: chatKind,
       timestamp: new Date().toISOString(),
-      title: generateChatTitle(messages, mode),
+      title: generateChatTitle(messages, chatKind),
       messageCount: messages.length,
       compressed: true, // Flag to indicate compression
     };
@@ -96,7 +114,7 @@ export const saveChat = (chatId, messages, mode) => {
     
     const historyEntry = {
       id: chatId,
-      mode,
+      mode: chatKind,
       timestamp: chatData.timestamp,
       title: chatData.title,
       messageCount: chatData.messageCount,
@@ -142,9 +160,9 @@ export const saveChat = (chatId, messages, mode) => {
         const chatData = {
           id: chatId,
           messages: compressed,
-          mode,
+          mode: chatKind,
           timestamp: new Date().toISOString(),
-          title: generateChatTitle(messages, mode),
+          title: generateChatTitle(messages, chatKind),
           messageCount: messages.length,
           compressed: true,
         };
@@ -352,7 +370,7 @@ export const saveSettings = (settings) => {
 
 const generateChatTitle = (messages, mode) => {
   if (messages.length === 0) {
-    return mode === 'text' ? 'New Text Chat' : 'New Image Generation';
+    return mode === 'image' ? 'New Image Generation' : 'New Chat';
   }
 
   const firstUserMessage = messages.find(m => m.role === 'user');
@@ -364,5 +382,5 @@ const generateChatTitle = (messages, mode) => {
       : content;
   }
 
-  return mode === 'text' ? 'Text Chat' : 'Image Generation';
+  return mode === 'image' ? 'Image Generation' : 'Chat';
 };

@@ -13,7 +13,6 @@ export const useChatLogic = () => {
   const [messages, setMessages] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
-  const [mode, setMode] = useState('text');
   
   // Use ref to track if we're loading to prevent unnecessary saves
   const isLoadingRef = useRef(false);
@@ -32,7 +31,6 @@ export const useChatLogic = () => {
       if (savedChat) {
         setCurrentChatId(savedChatId);
         setMessages(savedChat.messages || []);
-        setMode(savedChat.mode || 'text');
       }
     }
     
@@ -55,7 +53,7 @@ export const useChatLogic = () => {
       
       // Debounce save to avoid too frequent writes
       saveTimeoutRef.current = setTimeout(() => {
-        saveChat(currentChatId, messages, mode);
+        saveChat(currentChatId, messages);
         // Update history less frequently
         const history = getChatHistory();
         setChatHistory(history);
@@ -67,13 +65,12 @@ export const useChatLogic = () => {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [messages, currentChatId, mode]);
+  }, [messages, currentChatId]);
 
   const startNewChat = useCallback(() => {
     isLoadingRef.current = true;
     setMessages([]);
     setCurrentChatId(null);
-    setMode('text');
     invalidateCache();
     setChatHistory(getChatHistory());
     setTimeout(() => {
@@ -87,7 +84,6 @@ export const useChatLogic = () => {
     if (chat) {
       setCurrentChatId(chatId);
       setMessages(chat.messages || []);
-      setMode(chat.mode || 'text');
     }
     setTimeout(() => {
       isLoadingRef.current = false;
@@ -128,8 +124,6 @@ export const useChatLogic = () => {
     setMessages,
     currentChatId,
     chatHistory,
-    mode,
-    setMode,
     startNewChat,
     loadChat,
     handleDeleteChat,

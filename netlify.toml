@@ -4,7 +4,7 @@
   functions = "netlify/functions"
 
 [dev]
-  command = "npm start"
+  command = "npm run start:ui"
   targetPort = 3000
   port = 8888
   autoLaunch = false

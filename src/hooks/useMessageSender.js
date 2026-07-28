@@ -7,7 +7,12 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { streamChat, ERROR_CODES } from '../services/aiClient';
-import { processImageGeneration } from '../utils/imageGenerator';
+import {
+  processImageGeneration,
+  detectImageGenerationIntent,
+  parseImageCommand,
+  randomSeed,
+} from '../utils/imageGenerator';
 import { buildSystemPrompt } from '../config/prompts';
 import {
   APP_CONFIG,
@@ -36,6 +41,7 @@ const ERROR_KEYS = {
   [ERROR_CODES.RATE_LIMITED]: 'errRateLimited',
   [ERROR_CODES.NO_PROVIDER]: 'errNoProvider',
   [ERROR_CODES.MODEL_UNAVAILABLE]: 'errModelUnavailable',
+  [ERROR_CODES.PROVIDER_BLOCKED]: 'errProviderBlocked',
   [ERROR_CODES.TIMEOUT]: 'errTimeout',
   [ERROR_CODES.EMPTY]: 'errEmpty',
 };
@@ -46,7 +52,6 @@ const hasArabic = (text) => /[\u0600-\u06FF]/.test(text || '');
 export const useMessageSender = ({
   messages,
   setMessages,
-  mode,
   selectedModel,
   selectedImageModel,
   language,
@@ -59,6 +64,7 @@ export const useMessageSender = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [activeRequestType, setActiveRequestType] = useState(null);
 
   const abortRef = useRef(null);
   const frameRef = useRef(null);
@@ -265,58 +271,129 @@ export const useMessageSender = ({
   );
 
   // ---- image --------------------------------------------------------------
+  /**
+   * Images stream nothing, so the transcript gets a real placeholder bubble
+   * straight away and it is replaced in place. That keeps the layout stable and
+   * makes the request visible next to the prompt that caused it.
+   *
+   * @param {{seed?: number}} options a fresh seed makes regeneration actually
+   *   produce a different image on deterministic providers (Pollinations).
+   */
   const runImage = useCallback(
-    async (promptText, history) => {
+    async (promptText, history, options = {}) => {
+      const messageId = newId();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: messageId,
+          role: 'assistant',
+          content: '',
+          type: 'image',
+          originalPrompt: promptText,
+          timestamp: new Date().toISOString(),
+          modelUsed: selectedImageModel,
+          // routed by detection, not by an explicit request: the UI offers an undo
+          autoImage: !!options.auto,
+          pending: true,
+        },
+      ]);
+      onActivity?.();
+
       try {
         const enhanced = enhanceImagePromptWithContext(
           promptText,
           history.filter((m) => m.type === 'image')
         );
-        const result = await processImageGeneration(enhanced, { model: selectedImageModel });
+        const result = await processImageGeneration(enhanced, {
+          model: selectedImageModel,
+          seed: options.seed,
+        });
         if (!result.success) throw new Error(result.error);
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: newId(),
-            role: 'assistant',
-            content: result.imageUrl,
-            type: 'image',
-            prompt: result.processedPrompt,
-            originalPrompt: promptText,
-            timestamp: new Date().toISOString(),
-            modelUsed: result.model,
-            // data URLs cannot survive a reload: flagged so storage can drop them
-            persistable: result.persistable,
-          },
-        ]);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  content: result.imageUrl,
+                  prompt: result.processedPrompt,
+                  provider: result.provider,
+                  modelUsed: result.model,
+                  translated: !!result.wasTranslated,
+                  pending: false,
+                  // data URLs cannot survive a reload: flagged so storage can drop them
+                  persistable: result.persistable,
+                }
+              : m
+          )
+        );
         onActivity?.();
 
         if (result.fallback) notify(t('fallbackUsed'), { type: 'warning' });
       } catch (error) {
         console.error('Image generation failed:', error);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: newId(),
-            role: 'assistant',
-            content: t('errGeneratingImage'),
-            type: 'text',
-            timestamp: new Date().toISOString(),
-            isError: true,
-          },
-        ]);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  content: t('errGeneratingImage'),
+                  type: 'text',
+                  pending: false,
+                  isError: true,
+                }
+              : m
+          )
+        );
         notify(t('errGeneratingImage'), { type: 'error' });
       }
     },
     [notify, onActivity, selectedImageModel, setMessages, t]
   );
 
+  // ---- routing ------------------------------------------------------------
+  /**
+   * Decides between the text and the image pipeline for a raw composer value.
+   * Precedence: explicit `force` (composer toggle) > slash command > heuristics.
+   *
+   * @returns {{type: 'text'|'image', prompt: string, auto: boolean}} `auto` marks
+   *   an image chosen by detection alone, so the UI can offer an undo path.
+   */
+  const route = useCallback(
+    (rawText, force) => {
+      const command = parseImageCommand(rawText);
+      const prompt = command.prompt;
+
+      if (force === 'text') return { type: 'text', prompt, auto: false };
+      if (force === 'image' || command.forced) return { type: 'image', prompt, auto: false };
+
+      const hasImageContext = messages
+        .slice(-6)
+        .some((m) => m.type === 'image' && m.role === 'assistant' && !m.isError && !m.pending);
+
+      return detectImageGenerationIntent(prompt, { hasImageContext })
+        ? { type: 'image', prompt, auto: true }
+        : { type: 'text', prompt, auto: false };
+    },
+    [messages]
+  );
+
   // ---- public API ---------------------------------------------------------
+  /**
+   * @param {string} promptText raw composer value
+   * @param {{force?: 'text'|'image'}} options `force` comes from the composer mode
+   */
   const send = useCallback(
-    async (promptText) => {
-      const text = (promptText || '').trim();
-      if (!text || loading) return;
+    async (promptText, options = {}) => {
+      const raw = (promptText || '').trim();
+      if (!raw || loading) return;
+
+      const { type: requestType, prompt, auto } = route(raw, options.force);
+      // `/image` on its own has nothing to draw.
+      if (!prompt) {
+        notify(t('imagePromptMissing'), { type: 'warning' });
+        return;
+      }
 
       const chatId = createNewChatIfNeeded?.();
       const history = messages;
@@ -326,27 +403,35 @@ export const useMessageSender = ({
         {
           id: newId(),
           role: 'user',
-          content: text,
-          type: mode,
+          content: prompt,
+          type: requestType,
+          autoImage: requestType === 'image' && auto,
           timestamp: new Date().toISOString(),
         },
       ]);
+      setActiveRequestType(requestType);
       setLoading(true);
       onActivity?.();
 
       try {
-        if (mode === 'image') await runImage(text, history);
-        else await runText(text, history, chatId);
+        if (requestType === 'image') await runImage(prompt, history, { auto });
+        else await runText(prompt, history, chatId);
       } finally {
         setLoading(false);
+        setActiveRequestType(null);
       }
     },
-    [createNewChatIfNeeded, loading, messages, mode, onActivity, runImage, runText, setMessages]
+    [createNewChatIfNeeded, loading, messages, notify, onActivity, route, runImage, runText, setMessages, t]
   );
 
-  /** Re-run the user message that produced `messageIndex` */
+  /**
+   * Re-run the user message that produced `messageIndex`.
+   * @param {number} messageIndex index of the assistant message to replace
+   * @param {'text'|'image'} [forceType] switch pipelines, e.g. answer an
+   *   auto-detected image request as text instead.
+   */
   const regenerate = useCallback(
-    async (messageIndex) => {
+    async (messageIndex, forceType) => {
       if (loading) return;
 
       const target = messages[messageIndex];
@@ -355,31 +440,43 @@ export const useMessageSender = ({
         return;
       }
 
-      let userMessage = null;
+      let userIndex = -1;
       for (let i = messageIndex - 1; i >= 0; i -= 1) {
         if (messages[i].role === 'user') {
-          userMessage = messages[i];
+          userIndex = i;
           break;
         }
       }
 
-      if (!userMessage) {
+      if (userIndex < 0) {
         notify(t('errRegenerateTarget'), { type: 'warning' });
         return;
       }
 
-      const history = messages.slice(0, messageIndex);
+      const userMessage = messages[userIndex];
+      const requestType = forceType || (userMessage.type === 'image' ? 'image' : 'text');
+
+      // Drop everything the old answer produced, and remember the new routing so
+      // a second regenerate keeps the corrected pipeline.
+      const history = messages.slice(0, userIndex + 1).map((m, i) =>
+        i === userIndex ? { ...m, type: requestType, autoImage: false } : m
+      );
+      const priorHistory = history.slice(0, userIndex);
+
       setMessages(history);
+      setActiveRequestType(requestType);
       setLoading(true);
       onActivity?.();
 
       try {
-        const isImage = userMessage.type === 'image';
-        const priorHistory = history.slice(0, -1);
-        if (isImage) await runImage(userMessage.content, priorHistory);
-        else await runText(userMessage.content, priorHistory, createNewChatIfNeeded?.());
+        if (requestType === 'image') {
+          await runImage(userMessage.content, priorHistory, { seed: randomSeed() });
+        } else {
+          await runText(userMessage.content, priorHistory, createNewChatIfNeeded?.());
+        }
       } finally {
         setLoading(false);
+        setActiveRequestType(null);
       }
     },
     [createNewChatIfNeeded, loading, messages, notify, onActivity, runImage, runText, setMessages, t]
@@ -391,10 +488,11 @@ export const useMessageSender = ({
     cancelPending();
     setIsStreaming(false);
     setLoading(false);
+    setActiveRequestType(null);
     setMessages((prev) => prev.map((m) => (m.streaming
       ? { ...m, streaming: false, artifactBuilding: false }
       : m)));
   }, [cancelPending, setMessages]);
 
-  return { loading, isStreaming, send, regenerate, stop };
+  return { loading, isStreaming, activeRequestType, send, regenerate, stop };
 };

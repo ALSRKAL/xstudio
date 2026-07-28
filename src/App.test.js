@@ -123,30 +123,30 @@ describe('X Studio app', () => {
     );
 
     // provider group, vendor, label and description all come from discovery
-    const dialog = screen.getByRole('dialog');
+    const picker = screen.getByRole('listbox');
     await waitFor(() =>
-      expect(within(dialog).getByRole('heading', { name: 'OpenRouter' })).toBeInTheDocument()
+      expect(within(picker).getByRole('group', { name: 'OpenRouter' })).toBeInTheDocument()
     );
-    expect(within(dialog).getByText('Nemotron 3 Ultra (free)')).toBeInTheDocument();
-    expect(within(dialog).getByText('gpt-oss-20b (free)')).toBeInTheDocument();
-    expect(within(dialog).getAllByText('NVIDIA').length).toBeGreaterThan(0);
+    expect(within(picker).getByText('Nemotron 3 Ultra (free)')).toBeInTheDocument();
+    expect(within(picker).getByText('gpt-oss-20b (free)')).toBeInTheDocument();
+    expect(within(picker).getAllByText('NVIDIA').length).toBeGreaterThan(0);
     expect(
-      within(dialog).getByText(/mixture-of-experts reasoning model/i)
+      within(picker).getByText(/mixture-of-experts reasoning model/i)
     ).toBeInTheDocument();
-    expect(within(dialog).getByText('1M')).toBeInTheDocument();
+    expect(within(picker).getByText('1M')).toBeInTheDocument();
   });
 
   it('offers image models in their own tab', async () => {
     render(<App />);
 
     await userEvent.click(await screen.findByRole('button', { name: /nemotron/i }));
-    const dialog = screen.getByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('tab', { name: /نماذج صور|image models/i }));
+    await userEvent.click(await screen.findByRole('tab', { name: /نماذج صور|image models/i }));
 
+    const picker = screen.getByRole('listbox');
     await waitFor(() =>
-      expect(within(dialog).getByRole('heading', { name: 'Pollinations' })).toBeInTheDocument()
+      expect(within(picker).getByRole('group', { name: 'Pollinations' })).toBeInTheDocument()
     );
-    expect(within(dialog).getByText('Sana')).toBeInTheDocument();
+    expect(within(picker).getByText('Sana')).toBeInTheDocument();
   });
 
   it('keeps provider configuration and API keys out of Settings', async () => {

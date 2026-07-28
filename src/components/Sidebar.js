@@ -98,7 +98,7 @@ const Sidebar = memo(({
                   aria-current={currentChatId === chat.id}
                 >
                   <div className="history-icon">
-                    {chat.mode === 'text' ? <MessageSquare size={16} /> : <ImageIcon size={16} />}
+                    {chat.mode === 'image' ? <ImageIcon size={16} /> : <MessageSquare size={16} />}
                   </div>
                   <div className="history-content">
                     <p className="history-title">{chat.title}</p>

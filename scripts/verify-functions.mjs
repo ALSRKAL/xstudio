@@ -50,7 +50,14 @@ expect(
   `${detailed.length}/${modelsBody.models.length}`
 );
 
-const firstModel = modelsBody.models[0]?.id;
+// Exercise the model the app actually ships as its default. Picking the
+// widest-context model instead would test whichever giant model happens to sit
+// on top of the list, and those are the least reliable on free tiers.
+const { DEFAULT_MODEL } = await import('../src/config/api.js');
+const firstModel = modelsBody.models.some((m) => m.id === DEFAULT_MODEL)
+  ? DEFAULT_MODEL
+  : modelsBody.models[0]?.id;
+console.log('probe model', firstModel);
 
 line('guards');
 const guard = await chat(req({ method: 'GET' }));
@@ -182,7 +189,16 @@ expect('image endpoint 200', imageRes.status === 200, `status ${imageRes.status}
 expect('image url returned', typeof imageBody.url === 'string' && imageBody.url.length > 10);
 
 if (imageBody.url?.startsWith('http')) {
-  const probe = await fetch(imageBody.url, { signal: AbortSignal.timeout(90000) });
+  // Keyless image hosts answer 5xx under load. The app retries once with a new
+  // seed, so the check mirrors that instead of reporting a false failure.
+  let probe;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const url = new URL(imageBody.url);
+    if (attempt > 0) url.searchParams.set('seed', String(Date.now()));
+    probe = await fetch(url, { signal: AbortSignal.timeout(90000) });
+    if (probe.ok && (probe.headers.get('content-type') || '').startsWith('image')) break;
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 3000));
+  }
   expect(
     'image url serves an image',
     probe.ok && (probe.headers.get('content-type') || '').startsWith('image'),

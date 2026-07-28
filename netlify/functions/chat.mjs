@@ -245,6 +245,21 @@ export default async (req) => {
     }
   }
 
+  // OpenRouter answers 404 "No allowed providers are available..." when the
+  // account privacy/provider settings block every upstream for that model. The
+  // key is valid, so a generic "model unavailable" would send the operator
+  // hunting in the wrong place.
+  if (/no allowed providers/i.test(lastError)) {
+    return json(403, {
+      success: false,
+      error:
+        'The provider account blocks every upstream for this model. '
+        + 'Enable the providers in the OpenRouter privacy settings '
+        + '(openrouter.ai/settings/privacy), then retry.',
+      code: 'PROVIDER_BLOCKED',
+    });
+  }
+
   return json(lastStatus >= 400 && lastStatus < 600 ? lastStatus : 502, {
     success: false,
     error: allowFallback ? lastError : `Selected model failed: ${lastError}`,

@@ -10,11 +10,13 @@ import {
   Brain,
   Braces,
   Building2,
+  Cloud,
   Code2,
   Cpu,
   Eye,
   FileCode2,
   FlaskConical,
+  Flower2,
   Gem,
   Github,
   GraduationCap,
@@ -39,7 +41,7 @@ import {
   Zap,
 } from 'lucide-react';
 
-/** provider id -> icon component */
+/** provider id -> icon component (text + image providers share one registry) */
 const PROVIDER_ICONS = {
   llm7: Sparkles,
   groq: Zap,
@@ -50,6 +52,8 @@ const PROVIDER_ICONS = {
   github: Github,
   nvidia: Cpu,
   together: Users,
+  pollinations: Flower2,
+  cloudflare: Cloud,
 };
 
 export const getProviderIcon = (providerId) => PROVIDER_ICONS[providerId] || Server;
@@ -58,6 +62,7 @@ export const getProviderIcon = (providerId) => PROVIDER_ICONS[providerId] || Ser
 export const getAssistantIcon = (providerId) => PROVIDER_ICONS[providerId] || Bot;
 
 export const USER_ICON = UserRound;
+export const WELCOME_ICON = Sparkles;
 
 /** Welcome screen: capability cards */
 export const FEATURE_ICONS = {

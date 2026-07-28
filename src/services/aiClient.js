@@ -17,6 +17,7 @@ import {
   normalizeModelId,
   DEFAULT_MODEL,
   DIRECT_FALLBACK_MODELS,
+  OFFLINE_MODELS,
   EMERGENCY_MODEL,
   shouldUseBackendFunctions,
 } from '../config/api';
@@ -38,6 +39,7 @@ const ERROR_CODES = {
   RATE_LIMITED: 'RATE_LIMITED',
   NO_PROVIDER: 'NO_PROVIDER',
   MODEL_UNAVAILABLE: 'MODEL_UNAVAILABLE',
+  PROVIDER_BLOCKED: 'PROVIDER_BLOCKED',
   TIMEOUT: 'TIMEOUT',
   UPSTREAM: 'UPSTREAM',
   EMPTY: 'EMPTY',
@@ -299,12 +301,15 @@ export const fetchAvailableModels = async ({ refresh = false } = {}) => {
       ? discoveredModels
       : [...discoveredModels, ...DIRECT_FALLBACK_MODELS];
 
+    // Discovery reached the backend but no provider was configured there. The
+    // curated catalogue still describes real, free models, so show it instead of
+    // collapsing the picker down to the single keyless entry.
     if (!discoveredModels.length) {
-      return { models: DIRECT_FALLBACK_MODELS, imageModels, live: false };
+      return { models: OFFLINE_MODELS, imageModels, live: false };
     }
     return { models, imageModels, live: true, updatedAt: data.updatedAt };
   } catch {
-    return { models: DIRECT_FALLBACK_MODELS, imageModels: [], live: false };
+    return { models: OFFLINE_MODELS, imageModels: [], live: false };
   }
 };
 

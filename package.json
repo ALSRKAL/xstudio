@@ -16,15 +16,18 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "dev": "npx --yes netlify-cli dev",
+    "start": "netlify dev",
+    "start:ui": "react-scripts start",
+    "dev": "netlify dev",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
-    "verify:functions": "node scripts/verify-functions.mjs",
+    "verify:functions": "node --env-file-if-exists=.env scripts/verify-functions.mjs",
     "eject": "react-scripts eject",
     "deploy": "npm run build && echo 'Build complete! Ready for deployment.'"
   },
   "homepage": ".",
+  "//proxy": "Dev only: lets the CRA server on :3000 reach the Netlify functions served by `npm run dev` on :8888, so the full model catalogue works on either port.",
+  "proxy": "http://localhost:8888",
   "eslintConfig": {
     "extends": [
       "react-app",
@@ -45,6 +48,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
+    "netlify-cli": "27.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.15"
   }

@@ -14,6 +14,19 @@ const clampSize = (value, fallback) => {
   return Math.min(Math.max(Math.round(n / 64) * 64, 256), 1536);
 };
 
+/** Upstream samplers validate the seed as a signed 32-bit int */
+export const MAX_SEED = 2147483647;
+
+/**
+ * Millisecond timestamps overflow the 32-bit seed range and make the upstream
+ * reject the whole request, so every seed is normalised here.
+ */
+export const normalizeSeed = (seed) => {
+  const n = Number(seed);
+  if (!Number.isFinite(n) || n < 0) return Math.floor(Math.random() * MAX_SEED);
+  return Math.floor(n) % (MAX_SEED + 1);
+};
+
 const readError = async (response, label) => {
   let detail = '';
   try {
@@ -39,7 +52,7 @@ export const IMAGE_PROVIDERS = {
         width: String(clampSize(width, 1024)),
         height: String(clampSize(height, 1024)),
         model: model || 'sana',
-        seed: String(seed ?? Date.now()),
+        seed: String(normalizeSeed(seed)),
         nologo: 'true',
         referrer: 'x-studio',
       });
@@ -75,7 +88,7 @@ export const IMAGE_PROVIDERS = {
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, seed: Number(seed) || Math.floor(Math.random() * 1e6) }),
+          body: JSON.stringify({ prompt, seed: normalizeSeed(seed) }),
           signal: AbortSignal.timeout(90000),
         }
       );
@@ -127,7 +140,7 @@ export const IMAGE_PROVIDERS = {
           height: clampSize(height, 1024),
           steps: 4,
           n: 1,
-          seed: Number(seed) || undefined,
+          seed: seed === undefined ? undefined : normalizeSeed(seed),
           response_format: 'url',
         }),
         signal: AbortSignal.timeout(90000),

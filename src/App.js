@@ -16,6 +16,7 @@ import { useArtifactWorkspace } from './hooks/useArtifactWorkspace';
 import { useMessageSender } from './hooks/useMessageSender';
 import { useModelCatalog } from './hooks/useModelCatalog';
 import { useToast } from './hooks/useToast';
+import { randomSeed } from './utils/imageGenerator';
 import { getSettings, saveSettings, clearAllChats } from './utils/storage';
 import { copyToClipboard } from './utils/clipboard';
 import { useTranslation } from './utils/translations';
@@ -39,12 +40,15 @@ function App() {
   const [imageLoading, setImageLoading] = useState({});
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [imageMode, setImageMode] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [settings, setSettings] = useState(getSettings);
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const inputRef = useRef(null);
+  const modelButtonRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const pinnedToBottomRef = useRef(true);
 
@@ -66,8 +70,6 @@ function App() {
     setMessages,
     currentChatId,
     chatHistory,
-    mode,
-    setMode,
     startNewChat,
     loadChat,
     handleDeleteChat,
@@ -103,7 +105,6 @@ function App() {
   const storedImageModel = normalizeImageModelId(settings.imageModel || DEFAULT_IMAGE_MODEL);
   const selectedImageModelInfo = resolveSelectedImage(storedImageModel);
   const selectedImageModel = selectedImageModelInfo.id;
-  const activeModelInfo = mode === 'image' ? selectedImageModelInfo : selectedModelInfo;
 
   // ---- settings ----------------------------------------------------------
   const updateSettings = useCallback((patch) => {
@@ -181,10 +182,9 @@ function App() {
 
   const handleActivity = useCallback(() => scrollToBottom('auto'), [scrollToBottom]);
 
-  const { loading, isStreaming, send, regenerate, stop } = useMessageSender({
+  const { loading, isStreaming, activeRequestType, send, regenerate, stop } = useMessageSender({
     messages,
     setMessages,
-    mode,
     selectedModel,
     selectedImageModel,
     language: settings.language,
@@ -203,18 +203,38 @@ function App() {
     setPrompt('');
     pinnedToBottomRef.current = true;
     focusInput();
-    await send(text);
+    await send(text, { force: imageMode ? 'image' : undefined });
     scrollToBottom('smooth', true);
     focusInput();
-  }, [focusInput, loading, prompt, scrollToBottom, send]);
+  }, [focusInput, imageMode, loading, prompt, scrollToBottom, send]);
+
+  const handleToggleImageMode = useCallback(() => {
+    setImageMode((on) => !on);
+    focusInput();
+  }, [focusInput]);
+
+  /** Re-answer an auto-detected image request through the text pipeline */
+  const handleAnswerAsText = useCallback(
+    (index) => regenerate(index, 'text'),
+    [regenerate]
+  );
 
   const handlePromptChange = useCallback((event) => {
     setPrompt(event.target.value);
   }, []);
 
   const handleShowModelSelector = useCallback(() => {
-    setShowModelSelector(true);
+    setShowModelSelector((open) => !open);
   }, []);
+
+  const closeModelSelector = useCallback(() => {
+    setShowModelSelector(false);
+    requestAnimationFrame(() => modelButtonRef.current?.focus());
+  }, []);
+
+  const handleRefreshModels = useCallback(() => {
+    reloadModels({ refresh: true });
+  }, [reloadModels]);
 
   const handleKeyDown = useCallback(
     (event) => {
@@ -238,9 +258,10 @@ function App() {
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
-        setShowModelSelector(false);
+        closeModelSelector();
         setShowSettings(false);
         setSidebarOpen(false);
+        setLightbox(null);
         closeWorkspace();
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
@@ -251,7 +272,7 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [closeWorkspace, handleNewChat]);
+  }, [closeModelSelector, closeWorkspace, handleNewChat]);
 
   // ---- message actions ---------------------------------------------------
   const handleCopy = useCallback(
@@ -328,7 +349,7 @@ function App() {
 
           try {
             const url = new URL(message.content);
-            url.searchParams.set('seed', String(Date.now()));
+            url.searchParams.set('seed', String(randomSeed()));
             retrying = true;
             return { ...message, content: url.toString(), retriedAt: Date.now() };
           } catch {
@@ -369,25 +390,25 @@ function App() {
   const handleSelectModel = useCallback(
     (modelId) => {
       updateSettings({ model: modelId });
-      setShowModelSelector(false);
+      closeModelSelector();
       notify(`${t('modelSwitched')}: ${resolveSelected(modelId).name}`, {
         type: 'success',
         duration: 2500,
       });
     },
-    [notify, resolveSelected, t, updateSettings]
+    [closeModelSelector, notify, resolveSelected, t, updateSettings]
   );
 
   const handleSelectImageModel = useCallback(
     (modelId) => {
       updateSettings({ imageModel: modelId });
-      setShowModelSelector(false);
+      closeModelSelector();
       notify(`${t('modelSwitched')}: ${resolveSelectedImage(modelId).name}`, {
         type: 'success',
         duration: 2500,
       });
     },
-    [notify, resolveSelectedImage, t, updateSettings]
+    [closeModelSelector, notify, resolveSelectedImage, t, updateSettings]
   );
 
   const handleClearAllChats = useCallback(() => {
@@ -410,7 +431,8 @@ function App() {
   }, [messages, visibleCount]);
 
   const hiddenCount = messages.length - visibleMessages.length;
-  const LoadingAvatarIcon = getAssistantIcon(activeModelInfo.provider);
+  const loadingModelInfo = activeRequestType === 'image' ? selectedImageModelInfo : selectedModelInfo;
+  const LoadingAvatarIcon = getAssistantIcon(loadingModelInfo.provider);
 
   return (
     <div className="app" data-language={settings.language}>
@@ -447,7 +469,7 @@ function App() {
         <div className="main-content">
         <div className="chat-container">
           {messages.length === 0 ? (
-            <WelcomeScreen mode={mode} onPromptClick={setPrompt} language={settings.language} />
+            <WelcomeScreen onPromptClick={setPrompt} language={settings.language} />
           ) : (
             <div className="messages" ref={messagesContainerRef}>
               {hiddenCount > 0 && (
@@ -475,6 +497,8 @@ function App() {
                   onImageLoad={handleImageLoad}
                   onImageError={handleImageError}
                   onOpenArtifact={openArtifact}
+                  onOpenLightbox={setLightbox}
+                  onAnswerAsText={handleAnswerAsText}
                   onRunCode={handleRunCode}
                   detectLanguage={detectLanguage}
                   selectedModel={selectedModel}
@@ -482,7 +506,8 @@ function App() {
                 />
               ))}
 
-              {loading && !isStreaming && (
+              {/* images render their own placeholder bubble in the transcript */}
+              {loading && !isStreaming && activeRequestType !== 'image' && (
                 <div className="message assistant">
                   <div className="message-wrapper">
                     <div className="message-avatar">
@@ -497,9 +522,7 @@ function App() {
                           <span />
                           <span />
                         </div>
-                        <span className="loading-text">
-                          {mode === 'text' ? t('thinking') : t('generatingImage')}
-                        </span>
+                        <span className="loading-text">{t('thinking')}</span>
                       </div>
                     </div>
                   </div>
@@ -512,20 +535,38 @@ function App() {
         </div>
 
         <ChatInput
-          mode={mode}
           prompt={prompt}
           loading={loading}
           isStreaming={isStreaming}
           textareaRef={textareaRef}
           inputRef={inputRef}
+          modelButtonRef={modelButtonRef}
+          modelSelectorOpen={showModelSelector}
+          imageMode={imageMode}
+          onToggleImageMode={handleToggleImageMode}
+          modelSelector={showModelSelector ? (
+            <ModelSelector
+              groups={grouped}
+              imageGroups={imageGrouped}
+              loading={modelsLoading}
+              live={modelsLive}
+              onRefresh={handleRefreshModels}
+              selectedModel={selectedModel}
+              selectedImageModel={selectedImageModel}
+              onSelectModel={handleSelectModel}
+              onSelectImageModel={handleSelectImageModel}
+              onClose={closeModelSelector}
+              language={settings.language}
+              initialKind={imageMode ? 'image' : 'text'}
+            />
+          ) : null}
           onPromptChange={handlePromptChange}
           onKeyDown={handleKeyDown}
           onGenerate={handleGenerate}
           onStop={stop}
-          onModeChange={setMode}
           onShowModelSelector={handleShowModelSelector}
           language={settings.language}
-          modelInfo={activeModelInfo}
+          modelInfo={imageMode ? selectedImageModelInfo : selectedModelInfo}
         />
         </div>
 
@@ -545,23 +586,6 @@ function App() {
         />
       </div>
 
-      {showModelSelector && (
-        <ModelSelector
-          groups={grouped}
-          imageGroups={imageGrouped}
-          loading={modelsLoading}
-          live={modelsLive}
-          onRefresh={() => reloadModels({ refresh: true })}
-          selectedModel={selectedModel}
-          selectedImageModel={selectedImageModel}
-          onSelectModel={handleSelectModel}
-          onSelectImageModel={handleSelectImageModel}
-          onClose={() => setShowModelSelector(false)}
-          language={settings.language}
-          initialKind={mode === 'image' ? 'image' : 'text'}
-        />
-      )}
-
       {showSettings && (
         <SettingsDialog
           onClose={() => setShowSettings(false)}
@@ -572,6 +596,33 @@ function App() {
           onClearAllChats={handleClearAllChats}
           appVersion={APP_CONFIG.version}
         />
+      )}
+
+      {lightbox && (
+        <div
+          className="image-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('viewFullSize')}
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            className="image-lightbox-close"
+            onClick={() => setLightbox(null)}
+            aria-label={t('close')}
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={lightbox.url}
+            alt={lightbox.prompt || t('prompt')}
+            onClick={(event) => event.stopPropagation()}
+          />
+          {lightbox.prompt && (
+            <p className="image-lightbox-caption">{lightbox.prompt}</p>
+          )}
+        </div>
       )}
 
       <ToastStack toasts={toasts} onDismiss={dismiss} />

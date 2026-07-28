@@ -74,12 +74,11 @@ export const shouldUseBackendFunctions = () => {
   if (override === 'true') return true;
   if (override === 'false') return false;
 
-  if (typeof window !== 'undefined') {
-    const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
-    if (localHosts.has(window.location.hostname) && window.location.port === '3000') {
-      return false;
-    }
-  }
+  // In development the CRA server proxies `/.netlify/functions/*` to the
+  // Netlify dev server on :8888 (package.json -> proxy). Keeping functions
+  // enabled here makes the full catalogue available even when the browser was
+  // opened at localhost:3000. Set the explicit override to `false` only when
+  // intentionally running the frontend without Netlify.
   return true;
 };
 
@@ -260,8 +259,11 @@ export const FALLBACK_IMAGE_MODELS = [DEFAULT_IMAGE_MODEL];
 
 export const DEFAULT_PROVIDER = 'openrouter';
 
-// Strongest free model in the catalogue: 1M context, 550B MoE.
-export const DEFAULT_MODEL = 'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free';
+// Default is chosen for reliability, not for the biggest headline number:
+// 262K context, reasoning-capable, answers in ~2s. The 550B Ultra model is
+// kept in the catalogue but is not the default: measured end-to-end it often
+// streams nothing but keepalives for ~30s before closing the connection.
+export const DEFAULT_MODEL = 'openrouter:nvidia/nemotron-3-super-120b-a12b:free';
 
 /** Keyless emergency provider: never listed, used only if everything else fails */
 export const EMERGENCY_MODEL = 'llm7:gemini-3.1-flash-lite';
@@ -438,6 +440,14 @@ export const DIRECT_FALLBACK_MODELS = [
     contextWindow: 128000,
   }),
 ];
+
+/**
+ * What the picker shows when the backend exists but model discovery came back
+ * empty (provider key missing on the host, upstream hiccup). The curated free
+ * catalogue plus the keyless model, so the user still has a real choice and one
+ * option that always answers.
+ */
+export const OFFLINE_MODELS = [...FALLBACK_MODELS, ...DIRECT_FALLBACK_MODELS];
 
 // ---------------------------------------------------------------------------
 // Usage limits (per device). Set `enabled: false` to remove all limits.

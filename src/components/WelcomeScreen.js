@@ -1,64 +1,38 @@
-import { memo, useMemo } from 'react';
-import { ArrowUpRight, Image as ImageIcon, MessageSquare } from 'lucide-react';
-import { EXAMPLE_ICONS, FEATURE_ICONS } from '../config/icons';
+import { memo } from 'react';
+import { ArrowUpRight } from 'lucide-react';
+import { EXAMPLE_ICONS, FEATURE_ICONS, WELCOME_ICON } from '../config/icons';
 import { APP_CONFIG } from '../config/api';
 import { useTranslation } from '../utils/translations';
 
-// Feature cards and example prompts are data, not markup: one definition per
-// mode keeps the two modes from drifting apart.
-const FEATURES = {
-  text: [
-    { icon: 'code', title: 'codeGeneration', desc: 'codeGenerationDesc', prompt: 'codeGenerationPrompt' },
-    { icon: 'writing', title: 'contentWriting', desc: 'contentWritingDesc', prompt: 'contentWritingPrompt' },
-    { icon: 'analysis', title: 'analysis', desc: 'analysisDesc', prompt: 'analysisPrompt' },
-    { icon: 'learning', title: 'learning', desc: 'learningDesc', prompt: 'learningPrompt' },
-  ],
-  image: [
-    { icon: 'art', title: 'artDesign', desc: 'artDesignDesc', prompt: 'artDesignPrompt' },
-    { icon: 'landscape', title: 'landscapes', desc: 'landscapesDesc', prompt: 'landscapesPrompt' },
-    { icon: 'character', title: 'characters', desc: 'charactersDesc', prompt: 'charactersPrompt' },
-    { icon: 'fantasy', title: 'fantasy', desc: 'fantasyDesc', prompt: 'fantasyPrompt' },
-  ],
-};
+const FEATURES = [
+  { icon: 'code', title: 'codeGeneration', desc: 'codeGenerationDesc', prompt: 'codeGenerationPrompt' },
+  { icon: 'analysis', title: 'analysis', desc: 'analysisDesc', prompt: 'analysisPrompt' },
+  { icon: 'art', title: 'artDesign', desc: 'artDesignDesc', prompt: 'artDesignPrompt' },
+  { icon: 'learning', title: 'learning', desc: 'learningDesc', prompt: 'learningPrompt' },
+];
 
-const EXAMPLES = {
-  text: [
-    { icon: 'terminal', main: 'exampleText1', sub: 'exampleText1Sub' },
-    { icon: 'science', main: 'exampleText2', sub: 'exampleText2Sub' },
-    { icon: 'component', main: 'exampleText3', sub: 'exampleText3Sub' },
-  ],
-  image: [
-    { icon: 'city', main: 'exampleImage1', sub: 'exampleImage1Sub' },
-    { icon: 'robot', main: 'exampleImage2', sub: 'exampleImage2Sub' },
-    { icon: 'nature', main: 'exampleImage3', sub: 'exampleImage3Sub' },
-  ],
-};
+const EXAMPLES = [
+  { icon: 'terminal', main: 'exampleText1', sub: 'exampleText1Sub' },
+  { icon: 'science', main: 'exampleText2', sub: 'exampleText2Sub' },
+  { icon: 'city', main: 'exampleImage1', sub: 'exampleImage1Sub' },
+  { icon: 'nature', main: 'exampleImage3', sub: 'exampleImage3Sub' },
+];
 
-const WelcomeScreen = memo(({ mode, onPromptClick, language = 'ar' }) => {
+const WelcomeScreen = memo(({ onPromptClick, language = 'ar' }) => {
   const { t } = useTranslation(language);
-  const isText = mode === 'text';
-
-  const features = useMemo(() => FEATURES[isText ? 'text' : 'image'], [isText]);
-  const examples = useMemo(() => EXAMPLES[isText ? 'text' : 'image'], [isText]);
 
   return (
     <div className="welcome">
       <div className="welcome-header">
         <div className="welcome-icon-wrapper">
-          {isText ? (
-            <MessageSquare className="welcome-icon" aria-hidden="true" />
-          ) : (
-            <ImageIcon className="welcome-icon" aria-hidden="true" />
-          )}
+          <WELCOME_ICON className="welcome-icon" aria-hidden="true" />
         </div>
-        <h2>{isText ? t('welcomeTitle') : t('welcomeTitleImage')}</h2>
-        <p className="welcome-subtitle">
-          {isText ? t('welcomeSubtitle') : t('welcomeSubtitleImage')}
-        </p>
+        <h2>{t('welcomeTitle')}</h2>
+        <p className="welcome-subtitle">{t('welcomeSubtitle')}</p>
       </div>
 
       <div className="features-grid">
-        {features.map((feature) => {
+        {FEATURES.map((feature) => {
           const Icon = FEATURE_ICONS[feature.icon];
           return (
             <button
@@ -81,7 +55,7 @@ const WelcomeScreen = memo(({ mode, onPromptClick, language = 'ar' }) => {
 
       <div className="example-prompts">
         <h3 className="example-title">{t('examplesTitle')}</h3>
-        {examples.map((example) => {
+        {EXAMPLES.map((example) => {
           const Icon = EXAMPLE_ICONS[example.icon];
           return (
             <button

@@ -1,5 +1,17 @@
 import { memo, useCallback } from 'react';
-import { AlertCircle, Check, Copy, Download, ImageOff, Loader2, Play, RefreshCw } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  Download,
+  ImageOff,
+  Loader2,
+  Maximize2,
+  Play,
+  RefreshCw,
+  Sparkles,
+  Wand2,
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getModelInfo } from '../config/api';
@@ -20,6 +32,8 @@ const ChatMessage = memo(
     onImageLoad,
     onImageError,
     onOpenArtifact,
+    onOpenLightbox,
+    onAnswerAsText,
     onRunCode,
     detectLanguage,
     selectedModel,
@@ -31,8 +45,11 @@ const ChatMessage = memo(
     const isUser = message.role === 'user';
     const modelMeta = getModelInfo(message.modelUsed || selectedModel);
     const AvatarIcon = isUser ? USER_ICON : getAssistantIcon(modelMeta.provider);
-    const isImageResult = message.type === 'image' && !isUser && message.content !== undefined;
+    const isImageMessage = message.type === 'image' && !isUser;
+    const isImagePending = isImageMessage && message.pending;
+    const isImageResult = isImageMessage && !message.pending && !!message.content;
     const imageReady = imageLoading[index] === false;
+    const imagePrompt = message.originalPrompt || message.prompt || '';
     const direction = hasArabic(message.content) ? 'rtl' : 'ltr';
 
     const handleCopyCode = useCallback(
@@ -108,7 +125,7 @@ const ChatMessage = memo(
 
           <div className="message-content-wrapper">
             <div className={`message-content ${message.isError ? 'message-error' : ''}`}>
-              {isImageResult && message.expired ? (
+              {isImageMessage && message.expired ? (
                 <div className="image-expired">
                   <ImageOff size={18} aria-hidden="true" />
                   <div className="image-expired-body">
@@ -128,65 +145,95 @@ const ChatMessage = memo(
                     <span>{t('regenerate')}</span>
                   </button>
                 </div>
+              ) : isImagePending ? (
+                <div className="image-card is-pending" aria-busy="true">
+                  <div className="image-skeleton" aria-hidden="true">
+                    <Sparkles size={22} />
+                  </div>
+                  <div className="image-card-status" role="status">
+                    <Loader2 className="spinner" size={14} aria-hidden="true" />
+                    <span>{t('generatingImage')}</span>
+                  </div>
+                  {imagePrompt && <p className="image-card-prompt">{imagePrompt}</p>}
+                </div>
               ) : isImageResult ? (
                 <>
-                  <div className="image-result">
-                    {!imageReady && (
-                      <div className="image-loading">
-                        <Loader2 className="spinner" size={32} />
-                        <p>{t('loadingImage')}</p>
-                      </div>
-                    )}
-                    <img
-                      src={message.content}
-                      alt={message.originalPrompt || message.prompt || t('prompt')}
-                      loading="lazy"
-                      onLoad={() => onImageLoad(index)}
-                      onError={() => onImageError(index)}
-                      style={{ display: imageReady ? 'block' : 'none' }}
-                    />
-                    {imageReady && (message.originalPrompt || message.prompt) && (
-                      <div className="image-prompt-overlay">
-                        <p>
-                          <strong>{t('prompt')}:</strong>{' '}
-                          {message.originalPrompt || message.prompt}
-                        </p>
+                  <div className="image-card">
+                    <div className="image-frame">
+                      {!imageReady && (
+                        <div className="image-skeleton" aria-hidden="true">
+                          <Loader2 className="spinner" size={22} />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="image-open"
+                        onClick={() => onOpenLightbox?.({ url: message.content, prompt: imagePrompt })}
+                        title={t('viewFullSize')}
+                        aria-label={t('viewFullSize')}
+                        style={{ display: imageReady ? 'block' : 'none' }}
+                      >
+                        <img
+                          src={message.content}
+                          alt={imagePrompt || t('prompt')}
+                          loading="lazy"
+                          onLoad={() => onImageLoad(index)}
+                          onError={() => onImageError(index)}
+                        />
+                        <span className="image-open-hint" aria-hidden="true">
+                          <Maximize2 size={15} />
+                        </span>
+                      </button>
+                    </div>
+
+                    {imageReady && (
+                      <div className="image-card-footer">
+                        {imagePrompt && (
+                          <p className="image-card-prompt" title={imagePrompt}>{imagePrompt}</p>
+                        )}
+                        <div className="image-actions">
+                          <button
+                            type="button"
+                            className="image-action-button"
+                            onClick={() => onDownloadImage(message.content, message.prompt)}
+                            title={t('download')}
+                          >
+                            <Download size={15} />
+                            <span>{t('download')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="image-action-button"
+                            onClick={() => onRegenerate(index)}
+                            title={t('regenerate')}
+                          >
+                            <RefreshCw size={15} />
+                            <span>{t('regenerate')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="image-action-button"
+                            onClick={() => onCopy(message.prompt || message.originalPrompt, index)}
+                            title={t('copyPrompt')}
+                          >
+                            {copiedIndex === index ? <Check size={15} /> : <Copy size={15} />}
+                            <span>{t('copyPrompt')}</span>
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  {imageReady && (
-                    <div className="image-actions">
+                  {imageReady && message.autoImage && (
+                    <div className="image-routing-note">
+                      <Wand2 size={14} aria-hidden="true" />
+                      <span>{t('autoImageNote')}</span>
                       <button
                         type="button"
-                        className="image-action-button"
-                        onClick={() => onDownloadImage(message.content, message.prompt)}
+                        className="image-routing-action"
+                        onClick={() => onAnswerAsText?.(index)}
                       >
-                        <Download size={18} />
-                        <span>{t('download')}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="image-action-button"
-                        onClick={() => onCopy(message.content, index)}
-                      >
-                        {copiedIndex === index ? (
-                          <>
-                            <Check size={18} /> <span>{t('copied')}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={18} /> <span>{t('copyUrl')}</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        className="image-action-button"
-                        onClick={() => onRegenerate(index)}
-                      >
-                        <RefreshCw size={18} />
-                        <span>{t('regenerate')}</span>
+                        {t('answerAsText')}
                       </button>
                     </div>
                   )}

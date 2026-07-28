@@ -11,6 +11,7 @@ import {
   DEFAULT_IMAGE_MODEL,
   DEFAULT_MODEL,
   DIRECT_FALLBACK_MODELS,
+  OFFLINE_MODELS,
   FALLBACK_IMAGE_MODELS,
   IMAGE_PROVIDER_ORDER,
   PROVIDER_ORDER,
@@ -66,12 +67,14 @@ const groupByProvider = (models, order) => {
 
 export const useModelCatalog = () => {
   const [catalog, setCatalog] = useState(() => {
+    // Without server functions only the keyless model can actually answer, so
+    // listing anything else would be a lie.
     if (!shouldUseBackendFunctions()) {
       return { models: DIRECT_FALLBACK_MODELS, imageModels: fallbackImageMeta };
     }
     const cached = readCache();
     return {
-      models: cached?.models || DIRECT_FALLBACK_MODELS,
+      models: cached?.models || OFFLINE_MODELS,
       imageModels: cached?.imageModels || fallbackImageMeta,
     };
   });
@@ -111,7 +114,7 @@ export const useModelCatalog = () => {
         models.find((m) => m.id === normalized) ||
         models.find((m) => m.id === DEFAULT_MODEL) ||
         models[0] ||
-        DIRECT_FALLBACK_MODELS[0]
+        OFFLINE_MODELS[0]
       );
     },
     [models]
